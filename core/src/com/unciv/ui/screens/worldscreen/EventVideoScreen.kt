@@ -57,6 +57,16 @@ class EventVideoScreen(videoFile: FileHandle) : BaseScreen() {
         root.keyShortcuts.add(Input.Keys.ESCAPE) { dismiss() }
     }
 
+    override fun show() {
+        super.show()
+        Gdx.graphics.isContinuousRendering = true
+    }
+
+    override fun hide() {
+        Gdx.graphics.isContinuousRendering = game.settings.continuousRendering
+        super.hide()
+    }
+
     override fun render(delta: Float) {
         Gdx.gl.glClearColor(bgColor.r, bgColor.g, bgColor.b, bgColor.a)
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT)

@@ -472,7 +472,7 @@ class WorldScreen(
             val videoFile = IMediaFinder.Videos().findMedia("${alert.type.name}/${alert.value}")
             if (videoFile != null) {
                 alertsVideoShown.add(alertKey)
-                game.pushScreen(EventVideoScreen(videoFile))
+                stage.addActor(GifOverlay(stage, videoFile) { AlertPopup(this, alert) })
                 return
             }
         }
