@@ -18,6 +18,8 @@ import com.unciv.logic.map.MapVisualization
 import com.unciv.logic.multiplayer.MultiplayerGameUpdated
 import com.unciv.logic.multiplayer.storage.FileStorageRateLimitReached
 import com.unciv.logic.multiplayer.storage.MultiplayerAuthException
+import com.unciv.logic.civilization.PopupAlert
+import com.unciv.logic.files.IMediaFinder
 import com.unciv.logic.trade.TradeEvaluation
 import com.unciv.models.TutorialTrigger
 import com.unciv.models.metadata.GameSetupInfo
@@ -140,6 +142,7 @@ class WorldScreen(
 
     internal val undoHandler = UndoHandler(this)
 
+    private val alertsVideoShown = mutableSetOf<String>()
 
     init {
         // notifications are right-aligned, they take up only as much space as necessary.
@@ -437,7 +440,7 @@ class WorldScreen(
                     game.pushScreen(VictoryScreen(this))
                 viewingCiv.greatPeople.freeGreatPeople > 0 ->
                     game.pushScreen(GreatPersonPickerScreen(this, viewingCiv))
-                viewingCiv.popupAlerts.any() -> AlertPopup(this, viewingCiv.popupAlerts.first())
+                viewingCiv.popupAlerts.any() -> showAlertWithVideo(viewingCiv.popupAlerts.first())
                 viewingCiv.tradeRequests.isNotEmpty() -> {
                     // In the meantime this became invalid, perhaps because we accepted previous trades
                     for (tradeRequest in viewingCiv.tradeRequests.toList())
@@ -461,6 +464,19 @@ class WorldScreen(
         val posZoomFromRight = if (game.settings.showMinimap) minimapWrapper.width
         else bottomTileInfoTable.width
         zoomController.setPosition(stage.width - posZoomFromRight - 10f, 10f, Align.bottomRight)
+    }
+
+    private fun showAlertWithVideo(alert: PopupAlert) {
+        val alertKey = "${alert.type.name}/${alert.value}"
+        if (alertKey !in alertsVideoShown) {
+            val videoFile = IMediaFinder.Videos().findMedia("${alert.type.name}/${alert.value}")
+            if (videoFile != null) {
+                alertsVideoShown.add(alertKey)
+                game.pushScreen(EventVideoScreen(videoFile))
+                return
+            }
+        }
+        AlertPopup(this, alert)
     }
 
     private fun getCurrentTutorialTask(): Event? {

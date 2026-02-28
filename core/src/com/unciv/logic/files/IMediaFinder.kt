@@ -27,7 +27,7 @@ import kotlin.reflect.full.declaredMemberProperties
  *  - By default, "active mods" means selected in a running game, or selected as permanent audiovisual mod, and including builtin, in that order.
  *
  *  ## Instructions
- *  - Inherit the interface or one of the specializations [Sounds], [Music], [Images], [Voices]
+ *  - Inherit the interface or one of the specializations [Sounds], [Music], [Images], [Voices], [Videos]
  *  - Simply call [findMedia], [listMediaFolders] or [listMediaFiles]
  *  - If you need a specialization but your host already has a superclass - use delegation:
  *    `class SoundPlayer : Popup(), IMediaFinder by IMediaFinder.Sounds() { ... }`
@@ -187,6 +187,11 @@ interface IMediaFinder {
         override val mediaSubFolderName = "ExtraImages"
         override val supportedMediaExtensions = supportedImageExtensions()
         // no getInternalMediaNames - no listMediaFiles() for internal assets needed
+    }
+
+    open class Videos : IMediaFinder {
+        override val mediaSubFolderName = "videos"
+        override val supportedMediaExtensions = setOf(".gif")
     }
 
     /** Specialized subclass to provide all accessible sounds with a human-readable label.
