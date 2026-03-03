@@ -31,6 +31,7 @@ class GifOverlay(
 ) : Group() {
 
     private val gifActor = GifAnimationActor(videoFile)
+    private var canDismiss = false
 
     init {
         setSize(stage.width, stage.height)
@@ -54,19 +55,25 @@ class GifOverlay(
         gifActor.setPosition((stage.width - displayW) / 2f, gifY)
         addActor(gifActor)
 
-        // "Click to continue" label below the GIF
+        // "Click to continue" label below the GIF — hidden until the GIF finishes once
         val labelStyle = Label.LabelStyle(BaseScreen.skin.get(Label.LabelStyle::class.java))
         labelStyle.fontColor = Color(1f, 1f, 1f, 0.8f)
         val label = Label("Click to continue", labelStyle)
         label.setAlignment(Align.center)
         label.pack()
         label.setPosition((stage.width - label.width) / 2f, gifY - label.height - 8f)
+        label.isVisible = false
         addActor(label)
 
-        onClick(UncivSound.Silent) { dismiss() }
-        keyShortcuts.add(Input.Keys.SPACE) { dismiss() }
-        keyShortcuts.add(Input.Keys.ENTER) { dismiss() }
-        keyShortcuts.add(Input.Keys.ESCAPE) { dismiss() }
+        gifActor.onComplete = {
+            canDismiss = true
+            label.isVisible = true
+        }
+
+        onClick(UncivSound.Silent) { if (canDismiss) dismiss() }
+        keyShortcuts.add(Input.Keys.SPACE) { if (canDismiss) dismiss() }
+        keyShortcuts.add(Input.Keys.ENTER) { if (canDismiss) dismiss() }
+        keyShortcuts.add(Input.Keys.ESCAPE) { if (canDismiss) dismiss() }
 
         // GIF needs the render loop to fire continuously, not just on input events
         Gdx.graphics.isContinuousRendering = true

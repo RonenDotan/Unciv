@@ -61,7 +61,8 @@ import java.util.EnumSet
  */
 class AlertPopup(
     private val worldScreen: WorldScreen,
-    private val popupAlert: PopupAlert
+    private val popupAlert: PopupAlert,
+    private val afterClose: (() -> Unit)? = null
 ): Popup(worldScreen) {
 
     //region convenience getters
@@ -592,5 +593,6 @@ class AlertPopup(
         viewingCiv.popupAlerts.remove(popupAlert)
         worldScreen.shouldUpdate = true
         super.close()
+        afterClose?.invoke()
     }
 }

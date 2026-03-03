@@ -18,6 +18,10 @@ class GifAnimationActor(file: FileHandle) : Widget(), Disposable {
     private var elapsed = 0f
     private var currentTexture: Texture? = null
     private var playing = true
+    private var hasCompleted = false
+
+    /** Called once when the GIF finishes its first full playthrough. */
+    var onComplete: (() -> Unit)? = null
 
     val isFinished: Boolean
         get() = currentFrame >= decoder.frameCount - 1 &&
@@ -50,6 +54,10 @@ class GifAnimationActor(file: FileHandle) : Widget(), Disposable {
             currentFrame++
             if (currentFrame >= decoder.frameCount) {
                 currentFrame = 0 // Loop
+                if (!hasCompleted) {
+                    hasCompleted = true
+                    onComplete?.invoke()
+                }
             }
             showFrame(currentFrame)
         }
