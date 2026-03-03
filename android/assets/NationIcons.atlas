@@ -270,6 +270,13 @@ NationIcons/The Ottomans
   orig: 100, 100
   offset: 0, 0
   index: -1
+NationIcons/aGreece
+  rotate: false
+  xy: 1300, 278
+  size: 100, 100
+  orig: 100, 100
+  offset: 0, 0
+  index: -1
 VictoryScreenIcons/Charts
   rotate: false
   xy: 328, 386
