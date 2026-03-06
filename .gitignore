@@ -193,3 +193,4 @@ detekt/reports.html
 /buildSrc/.kotlin/sessions/*
 
 gradlew
+*claude*
