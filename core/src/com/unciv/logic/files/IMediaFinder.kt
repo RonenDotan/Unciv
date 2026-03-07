@@ -191,7 +191,8 @@ interface IMediaFinder {
 
     open class Videos : IMediaFinder {
         override val mediaSubFolderName = "videos"
-        override val supportedMediaExtensions = setOf(".gif")
+        // MP4 is tried before GIF — if both exist, MP4 wins (has sound on Android)
+        override val supportedMediaExtensions = setOf(".mp4", ".gif")
     }
 
     /** Specialized subclass to provide all accessible sounds with a human-readable label.
