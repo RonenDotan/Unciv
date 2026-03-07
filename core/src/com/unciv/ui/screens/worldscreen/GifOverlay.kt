@@ -37,6 +37,21 @@ class GifOverlay(
 
     private val gifActor: GifAnimationActor?
     private var canDismiss = false
+    private var elapsed = 0f
+
+    companion object {
+        private const val DISMISS_AFTER_SECONDS = 4f
+    }
+
+    override fun act(delta: Float) {
+        super.act(delta)
+        if (!canDismiss) {
+            elapsed += delta
+            if (elapsed >= DISMISS_AFTER_SECONDS) {
+                canDismiss = true
+            }
+        }
+    }
 
     init {
         setSize(stage.width, stage.height)

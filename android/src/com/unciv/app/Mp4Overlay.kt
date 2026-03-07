@@ -2,6 +2,8 @@ package com.unciv.app
 
 import android.app.Activity
 import android.graphics.Color
+import android.os.Handler
+import android.os.Looper
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
@@ -25,6 +27,10 @@ class Mp4Overlay(
     private val videoView = VideoView(activity)
     private var completed = false
     private var canDismiss = false
+
+    companion object {
+        private const val DISMISS_AFTER_MS = 4000L
+    }
 
     init {
         container.setBackgroundColor(Color.argb(180, 0, 0, 0))
@@ -72,6 +78,16 @@ class Mp4Overlay(
         container.setOnClickListener {
             if (canDismiss) dismiss(onUserDismiss)
         }
+
+        // Allow dismiss after 4 seconds even if video hasn't finished its first loop
+        Handler(Looper.getMainLooper()).postDelayed({
+            if (!completed) {
+                completed = true
+                canDismiss = true
+                label.visibility = View.VISIBLE
+                Gdx.app.postRunnable { onFirstLoopComplete() }
+            }
+        }, DISMISS_AFTER_MS)
 
         activity.runOnUiThread {
             val root = activity.window.decorView as ViewGroup
