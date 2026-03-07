@@ -1,3 +1,100 @@
+## 4.19.16
+
+Changed default max RAM from 1GB to 4GB, it's 2026, let people go crazy if they want
+
+Feature/spy city view restrictions - By ICanSeeForever
+
+FreshWater NaturalWonders no longer appear as lakes - By Ambeco
+
+Scale demands and WLTK duration with game speed - By unciv-loof
+
+## 4.19.15
+
+More explicit warning about large maps causing memory crashes 
+
+Catch base terrains with occursOn in ruleset validation
+
+Removing improvement-creating buildings where the no city tile has the improvement, no longer crashes
+
+Cities can attack revealed invisible units
+
+By Ambeco:
+- Adding alternate pathing algorithm 
+- Jungles again no longer spawn on hills 
+- MapGeneration ignores rareFeatures when placing normal tiles 
+
+Add max(), min() functions to countable expressions - By AutumnPizazz
+
+## 4.19.14
+
+Add star icon to resources on map that are currently provided
+
+Consistent XP cost for next N promotions vs single promotion
+
+AI denounce automation - By unciv-loof
+
+By AutumnPizazz:
+- Add game option to hide victory screen statistics 
+- Change 'Set [stockpile] to [amount]' to 'Set [stockpile] to [countable]' 
+
+MapGeneration supports multiple Mountains, Hills, Ice, Snow, Lakes, and Vegetation. - By Ambeco
+
+## 4.19.13
+
+Clear diplomatic modifiers and countdowns to resurrected civs
+
+Puppeted cities remove "marked for improvement by building" markers correctly
+
+Modding:
+- Specific uniques for gold purchase cost always override default cost
+- Global uniques can accept unit trigger conditions when placed on units
+
+By unciv-loof:
+- Border expansion logic 
+   - considers neighboring bonus resources at the edge of work range
+   - does not consider unexplored tiles  
+   - slightly prioritizes contested tiles 
+
+## 4.19.12
+
+Policies from overridden policy branches no longer "stick around" to affect the UI
+
+Added stockpiled resource stockpiles to resource overview
+
+Added "Set [stockpile] to [amount]" triggered unique
+
+Don't copy mod list download error to clipboard without human approval
+
+Download all possible mods when loading a game with missing mods, before notifying of problems
+
+Don't crash when finding civ-equivalent unit if the replacement unit doesn't exist in the ruleset
+
+## 4.19.11
+
+"Unit can be promoted" notification shows correct unit name
+
+Fixed DOF diplomacy changes for 3rd party civs
+
+Added limit to diplomatic modifiers that accumulate, specifically to negative protected-city-state modifiers
+
+City state quests are "consistent random"
+
+Fixed great people not creating improvements
+
+Sending a unit where it can't move any closer, no longer makes the unit image disappear
+
+"Must not be on [amount] largest landmasses" compatible with resource - By chenxing61
+
+## 4.19.10
+
+Add `[cityFilter] Cities of [civFilter] Civilizations` countable - By RobLoach
+
+Food consumption by population unique - By PLynx01
+
+Fix VictoryScreen Charts Visibility for Spectator and Layout - By SomeTroglodyte
+
+Customizable game duration during online games - By AubertJocelyn (new contributor!)
+
 ## 4.19.9
 
 Fixed mp server change on options, crashing the game

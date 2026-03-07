@@ -90,7 +90,7 @@ class ResourcesOverviewTab(
             else amount.toLabel()
         if (origin == ExtraInfoOrigin.Unimproved.name)
             label.onClick { overviewScreen.showOneTimeNotification(
-                gameInfo.getExploredResourcesNotification(viewingPlayer, resource.name, filter = ::isAlliedAndUnimproved)
+                gameInfo.getExploredResourcesNotification(viewingPlayer, resource, filter = ::isAlliedAndUnimproved)
             ) }
         return label
     }
@@ -183,17 +183,30 @@ class ResourcesOverviewTab(
         for (resource in resources) {
             add(resourceDrilldown.getTotalLabel(resource))
         }
-        addSeparator()
+        
 
         // Separate rows for origins not part of the totals
-        for (origin in extraOrigins) {
-            add(origin.horizontalCaption.toLabel().apply {
-                addTooltip(origin.tooltip, tooltipSize, tipAlign = Align.left)
-            }).left()
-            for (resource in resources) {
-                add(extraDrilldown.getLabel(resource, origin.name))
+        if (extraOrigins.any()) {
+            addSeparator()
+            for (origin in extraOrigins) {
+                add(origin.horizontalCaption.toLabel().apply {
+                    addTooltip(origin.tooltip, tooltipSize, tipAlign = Align.left)
+                }).left()
+                for (resource in resources) {
+                    add(extraDrilldown.getLabel(resource, origin.name))
+                }
+                row()
             }
-            row()
+        }
+        
+        // A row for stockpiles resources if required
+        if (resources.any { it.isStockpiled }){
+            addSeparator()
+            add("Stockpiled resources".toLabel()).left()
+            for (resource in resources) {
+                if (!resource.isStockpiled) add()
+                else add(viewingPlayer.getResourceAmount(resource).toLabel())
+            }
         }
     }
 
@@ -248,7 +261,7 @@ class ResourcesOverviewTab(
     }
 
     private fun Tile.countAsUnimproved(): Boolean {
-        val resource = tileResourceOrNull
+        val resource = tileResource
         return viewingPlayer.canSeeResource(resource) &&
             resource.resourceType != ResourceType.Bonus &&
             !providesResources(viewingPlayer)
@@ -260,7 +273,7 @@ class ResourcesOverviewTab(
         fun City.addUnimproved() {
             for (tile in getTiles())
                 if (tile.countAsUnimproved())
-                    newResourceSupplyList.add(tile.tileResource, ExtraInfoOrigin.Unimproved.name)
+                    newResourceSupplyList.add(tile.tileResource!!, ExtraInfoOrigin.Unimproved.name)
         }
 
         // Show resources relevant to WTLK day and/or needing improvement
