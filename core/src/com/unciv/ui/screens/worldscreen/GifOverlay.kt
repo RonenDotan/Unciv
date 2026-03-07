@@ -12,6 +12,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.Label
 import com.badlogic.gdx.utils.Align
 import com.unciv.UncivGame
 import com.unciv.models.UncivSound
+import com.unciv.ui.audio.MusicController
 import com.unciv.ui.components.input.keyShortcuts
 import com.unciv.ui.components.input.onClick
 import com.unciv.ui.images.GifAnimationActor
@@ -101,11 +102,14 @@ class GifOverlay(
         keyShortcuts.add(Input.Keys.SPACE) { if (canDismiss) dismiss() }
         keyShortcuts.add(Input.Keys.ENTER) { if (canDismiss) dismiss() }
         keyShortcuts.add(Input.Keys.ESCAPE) { if (canDismiss) dismiss() }
+
+        UncivGame.Current.musicController.pause()
     }
 
     private fun dismiss() {
         Gdx.graphics.isContinuousRendering = UncivGame.Current.settings.continuousRendering
         gifActor?.dispose()
+        UncivGame.Current.musicController.resume()
         remove()
         onDismiss()
     }
