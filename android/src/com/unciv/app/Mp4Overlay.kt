@@ -38,7 +38,9 @@ class Mp4Overlay(
         val fillParams = FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.MATCH_PARENT,
             FrameLayout.LayoutParams.MATCH_PARENT
-        )
+        ).apply {
+            gravity = Gravity.CENTER
+        }
         container.addView(videoView, fillParams)
 
         val label = TextView(activity).apply {

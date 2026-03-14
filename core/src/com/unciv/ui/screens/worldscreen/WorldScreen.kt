@@ -18,6 +18,7 @@ import com.unciv.logic.map.MapVisualization
 import com.unciv.logic.multiplayer.MultiplayerGameUpdated
 import com.unciv.logic.multiplayer.storage.FileStorageRateLimitReached
 import com.unciv.logic.multiplayer.storage.MultiplayerAuthException
+import com.unciv.logic.civilization.AlertType
 import com.unciv.logic.civilization.PopupAlert
 import com.unciv.logic.files.IMediaFinder
 import com.unciv.logic.trade.TradeEvaluation
@@ -437,7 +438,7 @@ class WorldScreen(
                 viewingCiv.shouldShowDiplomaticVotingResults() ->
                     UncivGame.Current.pushScreen(DiplomaticVoteResultScreen(gameInfo.diplomaticVictoryVotesCast, viewingCiv))
                 !gameInfo.oneMoreTurnMode && (viewingCiv.isDefeated() || gameInfo.checkForVictory()) ->
-                    game.pushScreen(VictoryScreen(this))
+                    showVictoryWithVideo()
                 viewingCiv.greatPeople.freeGreatPeople > 0 ->
                     game.pushScreen(GreatPersonPickerScreen(this, viewingCiv))
                 viewingCiv.popupAlerts.any() -> showAlertWithVideo(viewingCiv.popupAlerts.first())
@@ -468,15 +469,36 @@ class WorldScreen(
 
     private fun showAlertWithVideo(alert: PopupAlert) {
         val alertKey = "${alert.type.name}/${alert.value}"
+        if (alert.type == AlertType.StartIntro && alertKey in alertsVideoShown) return  // video is playing; popup will be shown on dismiss
         if (game.settings.showEventVideos && alertKey !in alertsVideoShown) {
             val videoFile = IMediaFinder.Videos().findMedia("${alert.type.name}/${alert.value}")
             if (videoFile != null) {
                 alertsVideoShown.add(alertKey)
-                AlertPopup(this, alert) { stage.addActor(GifOverlay(stage, videoFile) {}) }
+                if (alert.type == AlertType.StartIntro) {
+                    // Video plays first as a cinematic intro, then the leader popup appears
+                    stage.addActor(GifOverlay(stage, videoFile) { AlertPopup(this, alert) })
+                } else {
+                    AlertPopup(this, alert) { stage.addActor(GifOverlay(stage, videoFile) {}) }
+                }
                 return
             }
         }
         AlertPopup(this, alert)
+    }
+
+    private fun showVictoryWithVideo() {
+        val victoryData = gameInfo.victoryData
+        val videoKey = "GameHasBeenWon/${victoryData?.victoryType ?: ""}"
+        if (videoKey in alertsVideoShown) return  // video is playing; VictoryScreen will be pushed on dismiss
+        if (game.settings.showEventVideos && victoryData != null && !viewingCiv.isDefeated()) {
+            val videoFile = IMediaFinder.Videos().findMedia(videoKey)
+            if (videoFile != null) {
+                alertsVideoShown.add(videoKey)
+                stage.addActor(GifOverlay(stage, videoFile) { game.pushScreen(VictoryScreen(this)) })
+                return
+            }
+        }
+        game.pushScreen(VictoryScreen(this))
     }
 
     private fun getCurrentTutorialTask(): Event? {

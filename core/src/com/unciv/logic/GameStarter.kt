@@ -162,7 +162,7 @@ object GameStarter {
             // isNotEmpty should also exclude a spectator
             it.playerType == PlayerType.Human && it.nation.startIntroPart1.isNotEmpty()
         }.forEach {
-            it.popupAlerts.add(PopupAlert(AlertType.StartIntro, ""))
+            it.popupAlerts.add(PopupAlert(AlertType.StartIntro, "Intro"))
         }
     }
 

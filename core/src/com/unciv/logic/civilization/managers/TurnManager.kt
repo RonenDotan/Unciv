@@ -339,7 +339,7 @@ class TurnManager(val civInfo: Civilization) {
                 // Skip winner, displaying VictoryScreen is handled separately in WorldScreen.update
                 // by checking `viewingCiv.isDefeated() || gameInfo.checkForVictory()`
                 if (otherCiv.playerType != PlayerType.Human || otherCiv == civInfo) continue
-                otherCiv.popupAlerts.add(PopupAlert(AlertType.GameHasBeenWon, ""))
+                otherCiv.popupAlerts.add(PopupAlert(AlertType.GameHasBeenWon, victoryType))
             }
         }
     }
