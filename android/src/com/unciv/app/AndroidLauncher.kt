@@ -8,6 +8,7 @@ import com.badlogic.gdx.backends.android.AndroidApplication
 import com.badlogic.gdx.backends.android.AndroidApplicationConfiguration
 import com.unciv.logic.files.UncivFiles
 import com.unciv.ui.components.fonts.Fonts
+import com.unciv.ui.images.VideoPlayerFactory
 import com.unciv.utils.Display
 import com.unciv.utils.Log
 import java.io.File
@@ -36,6 +37,11 @@ open class AndroidLauncher : AndroidApplication() {
         // Setup Android custom saver-loader
         UncivFiles.saverLoader = AndroidSaverLoader(this)
         UncivFiles.preferExternalStorage = true
+
+        // Register MP4 video player (Android-only)
+        VideoPlayerFactory.playMp4 = { file, onFirstLoopComplete, onUserDismiss ->
+            Mp4Overlay(this, file, onFirstLoopComplete, onUserDismiss)
+        }
 
         val settings = UncivFiles.getSettingsForPlatformLaunchers(filesDir.path)
         val config = AndroidApplicationConfiguration().apply { useImmersiveMode = settings.androidHideSystemUi }

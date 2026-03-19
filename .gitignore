@@ -191,4 +191,7 @@ detekt/reports.html
 
 /buildSrc/.kotlin/errors/*
 /buildSrc/.kotlin/sessions/*
+
+gradlew
+*claude*
 /.claude/

@@ -18,6 +18,9 @@ import com.unciv.logic.map.MapVisualization
 import com.unciv.logic.multiplayer.MultiplayerGameUpdated
 import com.unciv.logic.multiplayer.storage.FileStorageRateLimitReached
 import com.unciv.logic.multiplayer.storage.MultiplayerAuthException
+import com.unciv.logic.civilization.AlertType
+import com.unciv.logic.civilization.PopupAlert
+import com.unciv.logic.files.IMediaFinder
 import com.unciv.logic.trade.TradeEvaluation
 import com.unciv.models.TutorialTrigger
 import com.unciv.models.metadata.GameSetupInfo
@@ -140,6 +143,7 @@ class WorldScreen(
 
     internal val undoHandler = UndoHandler(this)
 
+    private val alertsVideoShown = mutableSetOf<String>()
 
     init {
         // notifications are right-aligned, they take up only as much space as necessary.
@@ -434,10 +438,10 @@ class WorldScreen(
                 viewingCiv.shouldShowDiplomaticVotingResults() ->
                     UncivGame.Current.pushScreen(DiplomaticVoteResultScreen(gameInfo.diplomaticVictoryVotesCast, viewingCiv))
                 !gameInfo.oneMoreTurnMode && (viewingCiv.isDefeated() || gameInfo.checkForVictory()) ->
-                    game.pushScreen(VictoryScreen(this))
+                    showVictoryWithVideo()
                 viewingCiv.greatPeople.freeGreatPeople > 0 ->
                     game.pushScreen(GreatPersonPickerScreen(this, viewingCiv))
-                viewingCiv.popupAlerts.any() -> AlertPopup(this, viewingCiv.popupAlerts.first())
+                viewingCiv.popupAlerts.any() -> showAlertWithVideo(viewingCiv.popupAlerts.first())
                 viewingCiv.tradeRequests.isNotEmpty() -> {
                     // In the meantime this became invalid, perhaps because we accepted previous trades
                     for (tradeRequest in viewingCiv.tradeRequests.toList())
@@ -461,6 +465,40 @@ class WorldScreen(
         val posZoomFromRight = if (game.settings.showMinimap) minimapWrapper.width
         else bottomTileInfoTable.width
         zoomController.setPosition(stage.width - posZoomFromRight - 10f, 10f, Align.bottomRight)
+    }
+
+    private fun showAlertWithVideo(alert: PopupAlert) {
+        val alertKey = "${alert.type.name}/${alert.value}"
+        if (alert.type == AlertType.StartIntro && alertKey in alertsVideoShown) return  // video is playing; popup will be shown on dismiss
+        if (game.settings.showEventVideos && alertKey !in alertsVideoShown) {
+            val videoFile = IMediaFinder.Videos().findMedia("${alert.type.name}/${alert.value}")
+            if (videoFile != null) {
+                alertsVideoShown.add(alertKey)
+                if (alert.type == AlertType.StartIntro) {
+                    // Video plays first as a cinematic intro, then the leader popup appears
+                    stage.addActor(GifOverlay(stage, videoFile) { AlertPopup(this, alert) })
+                } else {
+                    AlertPopup(this, alert) { stage.addActor(GifOverlay(stage, videoFile) {}) }
+                }
+                return
+            }
+        }
+        AlertPopup(this, alert)
+    }
+
+    private fun showVictoryWithVideo() {
+        val victoryData = gameInfo.victoryData
+        val videoKey = "GameHasBeenWon/${victoryData?.victoryType ?: ""}"
+        if (videoKey in alertsVideoShown) return  // video is playing; VictoryScreen will be pushed on dismiss
+        if (game.settings.showEventVideos && victoryData != null && !viewingCiv.isDefeated()) {
+            val videoFile = IMediaFinder.Videos().findMedia(videoKey)
+            if (videoFile != null) {
+                alertsVideoShown.add(videoKey)
+                stage.addActor(GifOverlay(stage, videoFile) { game.pushScreen(VictoryScreen(this)) })
+                return
+            }
+        }
+        game.pushScreen(VictoryScreen(this))
     }
 
     private fun getCurrentTutorialTask(): Event? {

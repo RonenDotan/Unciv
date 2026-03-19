@@ -82,6 +82,8 @@ internal class DisplayTab(
         continuousRenderingLabel.wrap = true
         add(continuousRenderingLabel).colspan(2).padTop(10f).row()
 
+        addCheckbox("Show event videos", settings::showEventVideos)
+
         addHeader("Experimental")
 
         addCheckbox("Experimental Demographics scoreboard", settings::useDemographics)
