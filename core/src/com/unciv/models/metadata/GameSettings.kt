@@ -92,6 +92,7 @@ class GameSettings {
     var showPixelImprovements: Boolean = true
     var continuousRendering = false
     var showEventVideos = true
+    var useTacticalBattles: Boolean = false
     var orderTradeOffersByAmount = true
     var confirmNextTurn = false
     var windowState = WindowState()

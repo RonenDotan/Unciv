@@ -33,6 +33,8 @@ import com.unciv.ui.components.input.onClick
 import com.unciv.ui.components.widgets.UnitIconGroup
 import com.unciv.ui.images.ImageGetter
 import com.unciv.ui.screens.basescreen.BaseScreen
+import com.unciv.logic.battle.tactical.TacticalBattleContext
+import com.unciv.ui.screens.tacticalbattle.TacticalBattleScreen
 import com.unciv.ui.screens.worldscreen.UndoHandler.Companion.clearUndoCheckpoints
 import com.unciv.ui.screens.worldscreen.WorldScreen
 import com.unciv.ui.screens.worldscreen.bottombar.BattleTableHelpers.battleAnimationDeferred
@@ -319,6 +321,17 @@ class BattleTable(val worldScreen: WorldScreen) : Table() {
         if (!canStillAttack) return
         if (!SoundPlayer.play(UncivSound(attacker.getName())))
             SoundPlayer.play(attacker.getAttackSound())
+
+        // Launch tactical battle screen when feature is enabled and both sides are map units (not nukes/cities)
+        if (worldScreen.game.settings.useTacticalBattles
+            && attacker is MapUnitCombatant && defender is MapUnitCombatant
+            && !attacker.unit.isNuclearWeapon()
+            && !worldScreen.autoPlay.isAutoPlaying()) {
+            val context = TacticalBattleContext.buildFrom(attacker.unit, defender.unit)
+            worldScreen.game.pushScreen(TacticalBattleScreen(context))
+            hide()
+            return
+        }
 
         val (damageToDefender, damageToAttacker) = Battle.attackOrNuke(attacker, attackableTile)
 
