@@ -50,12 +50,12 @@ class TacticalBattleContext(
         }
 
         /**
-         * Converts a tile's hex position to a world Vector2 used for actor placement.
-         * Uses the same formula as HexMath so positions align with the tile map.
+         * Converts a tile's hex position to a world Vector2 matching TileGroupMap's coordinate system.
+         * TileGroupMap places tiles at: hex2WorldCoords(pos) * 0.8f * groupSize (50f) = pos * 40f.
          */
         fun tileToWorldPos(tile: Tile): Vector2 {
             return HexMath.hex2WorldCoords(tile.position)
-                .scl(TacticalUnit.HEX_SIZE)
+                .scl(TacticalUnit.HEX_SIZE)  // HEX_SIZE = 40f = TileGroupMap.groupSize * 0.8f
         }
 
         const val DEFAULT_RADIUS = 3

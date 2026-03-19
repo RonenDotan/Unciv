@@ -128,8 +128,11 @@ class TacticalUnit(val sourceUnit: MapUnit) : ICombatant {
     override fun isLandUnit(): Boolean = sourceUnit.baseUnit.isLandUnit
 
     companion object {
-        /** World pixels per tile unit (before hex coordinate scaling) */
-        const val HEX_SIZE = 60f
+        /**
+         * Scale factor matching TileGroupMap's coordinate system:
+         * TileGroupMap positions tiles at hex2WorldCoords(pos) * 0.8f * groupSize (50f) = pos * 40f.
+         */
+        const val HEX_SIZE = 40f  // = TileGroupMap.groupSize * 0.8f
 
         /** sqrt(3) — distance between adjacent hex centers in world coords at HEX_SIZE scale */
         val SQRT3 = sqrt(3.0).toFloat()

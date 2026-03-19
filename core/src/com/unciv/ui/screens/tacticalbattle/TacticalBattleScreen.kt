@@ -4,6 +4,7 @@ import com.badlogic.gdx.Gdx
 import com.badlogic.gdx.Input
 import com.badlogic.gdx.graphics.Color
 import com.badlogic.gdx.graphics.GL20
+import com.badlogic.gdx.scenes.scene2d.Touchable
 import com.badlogic.gdx.scenes.scene2d.ui.Label
 import com.badlogic.gdx.scenes.scene2d.ui.Table
 import com.badlogic.gdx.utils.Align
@@ -17,68 +18,80 @@ import com.unciv.ui.components.input.onClick
 import com.unciv.ui.screens.basescreen.BaseScreen
 
 /**
- * Full-screen tactical battle screen.
- * Runs a real-time simulation where units automatically fight each other.
- * The player can dismiss after the battle concludes.
+ * Full-screen tactical battle screen with a real-time hex map and moving unit icons.
  */
 class TacticalBattleScreen(private val context: TacticalBattleContext) : BaseScreen() {
 
     private val result = TacticalBattleResult(context.playerUnits, context.enemyUnits)
     private val healthLabels = mutableMapOf<TacticalUnit, Label>()
-    private val resultLabel = "".toLabel(Color.GOLD, 28).apply { setAlignment(Align.center) }
+    private val resultLabel = "".toLabel(Color.GOLD, 24).apply { setAlignment(Align.center) }
+    private val unitActors = mutableMapOf<TacticalUnit, TacticalUnitActor>()
+    private val mapHolder = TacticalMapHolder(context)
     private var battleOver = false
 
     init {
-        val root = Table()
-        root.setFillParent(true)
-        root.background = skinStrings.getUiBackground("General/Border", tintColor = Color(0f, 0f, 0.1f, 0.95f))
-        stage.addActor(root)
+        // Map fills the top portion of the screen
+        val mapTable = Table()
+        mapTable.add(mapHolder).grow().row()
+        mapTable.setFillParent(true)
+        stage.addActor(mapTable)
 
-        root.add("⚔ Tactical Battle".toLabel(Color.GOLD, 36)).padBottom(16f).row()
-        root.add("Battle radius: ${context.radius} tiles".toLabel(Color.WHITE, 14)).padBottom(20f).row()
+        // HUD overlay at the bottom
+        val hud = buildHud()
+        hud.setFillParent(true)
+        stage.addActor(hud)
 
-        root.add(buildUnitTable()).padBottom(16f).row()
-        root.add(resultLabel).padBottom(20f).row()
-
-        val dismissButton = "End Battle".toLabel(Color.WHITE, 20).apply { setAlignment(Align.center) }
-        root.add(dismissButton).width(200f).height(50f).padBottom(20f)
-
-        dismissButton.onClick { dismiss() }
-        root.keyShortcuts.add(Input.Keys.ESCAPE) { dismiss() }
-        root.keyShortcuts.add(Input.Keys.ENTER) { if (battleOver) dismiss() }
-        root.touchable = com.badlogic.gdx.scenes.scene2d.Touchable.enabled
+        // Sync unit worldPos to actual TileGroupMap positions (which have an internal offset)
+        // then create actors at those corrected positions
+        for (unit in context.allUnits) {
+            mapHolder.getWorldPos(unit.currentTile)?.let { unit.worldPos.set(it) }
+            val actor = TacticalUnitActor(unit, mapHolder.tileSetStrings)
+            unitActors[unit] = actor
+            mapHolder.unitLayer.addActor(actor)
+            actor.centerOn(unit.worldPos.x, unit.worldPos.y)
+        }
     }
 
-    private fun buildUnitTable(): Table {
-        val table = Table()
+    private fun buildHud(): Table {
+        val hud = Table()
+        hud.touchable = Touchable.childrenOnly
 
-        table.add("Your forces".toLabel(Color.GREEN, 16)).padRight(40f)
-        table.add("Enemy forces".toLabel(Color.RED, 16)).row()
+        // Bottom panel: result label + unit HP + dismiss button
+        val bottomPanel = Table()
+        bottomPanel.background = skinStrings.getUiBackground(
+            "General/Border", tintColor = Color(0f, 0f, 0f, 0.75f)
+        )
+        bottomPanel.pad(8f)
 
-        val maxRows = maxOf(context.playerUnits.size, context.enemyUnits.size)
-        for (i in 0 until maxRows) {
-            val player = context.playerUnits.getOrNull(i)
-            val enemy = context.enemyUnits.getOrNull(i)
+        bottomPanel.add(resultLabel).colspan(2).padBottom(4f).row()
 
-            if (player != null) {
-                val lbl = "${player.getName()} HP:${player.currentHealth}".toLabel(Color.GREEN, 13)
-                healthLabels[player] = lbl
-                table.add(lbl).left().padRight(40f)
-            } else {
-                table.add()
-            }
-
-            if (enemy != null) {
-                val lbl = "${enemy.getName()} HP:${enemy.currentHealth}".toLabel(Color.RED, 13)
-                healthLabels[enemy] = lbl
-                table.add(lbl).left()
-            } else {
-                table.add()
-            }
-            table.row()
+        // Unit HP columns
+        val playerCol = Table()
+        val enemyCol = Table()
+        for (unit in context.playerUnits) {
+            val lbl = "${unit.getName()} HP:${unit.currentHealth}".toLabel(Color.GREEN, 11)
+            healthLabels[unit] = lbl
+            playerCol.add(lbl).left().row()
         }
+        for (unit in context.enemyUnits) {
+            val lbl = "${unit.getName()} HP:${unit.currentHealth}".toLabel(Color.RED, 11)
+            healthLabels[unit] = lbl
+            enemyCol.add(lbl).left().row()
+        }
+        bottomPanel.add(playerCol).padRight(20f).top()
+        bottomPanel.add(enemyCol).top().row()
 
-        return table
+        val dismissButton = "End Battle".toLabel(Color.WHITE, 16).apply { setAlignment(Align.center) }
+        bottomPanel.add(dismissButton).colspan(2).padTop(6f).width(160f).height(36f)
+        dismissButton.onClick { dismiss() }
+
+        hud.add().grow().row()  // push panel to bottom
+        hud.add(bottomPanel).growX().row()
+
+        hud.keyShortcuts.add(Input.Keys.ESCAPE) { dismiss() }
+        hud.keyShortcuts.add(Input.Keys.ENTER) { if (battleOver) dismiss() }
+
+        return hud
     }
 
     private fun simulationStep(delta: Float) {
@@ -88,6 +101,12 @@ class TacticalBattleScreen(private val context: TacticalBattleContext) : BaseScr
         for (unit in context.playerUnits) unit.update(cappedDelta, context.enemyUnits)
         for (unit in context.enemyUnits) unit.update(cappedDelta, context.playerUnits)
 
+        // Update actors
+        for ((unit, actor) in unitActors) {
+            actor.centerOn(unit.worldPos.x, unit.worldPos.y)
+            actor.updateFromUnit()
+        }
+
         // Update HP labels
         for ((unit, label) in healthLabels) {
             val state = if (unit.state == TacticalUnitState.DEAD) "DEAD" else "HP:${unit.currentHealth}"
@@ -95,14 +114,17 @@ class TacticalBattleScreen(private val context: TacticalBattleContext) : BaseScr
         }
 
         // Check win condition
-        if (result.playerWon) {
-            resultLabel.setText("Victory! Your forces prevailed.")
-            resultLabel.color = Color.GOLD
-            battleOver = true
-        } else if (result.enemyWon) {
-            resultLabel.setText("Defeat! Your forces were overcome.")
-            resultLabel.color = Color.RED
-            battleOver = true
+        when {
+            result.playerWon -> {
+                resultLabel.setText("Victory!")
+                resultLabel.color = Color.GOLD
+                battleOver = true
+            }
+            result.enemyWon -> {
+                resultLabel.setText("Defeat!")
+                resultLabel.color = Color.RED
+                battleOver = true
+            }
         }
     }
 
