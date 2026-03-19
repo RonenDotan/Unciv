@@ -53,9 +53,9 @@ class TacticalBattleScreen(private val context: TacticalBattleContext) : BaseScr
         table.add("Battle radius: ${context.radius} tiles".toLabel(Color.WHITE, 16)).padBottom(4f).row()
 
         for (unit in context.playerUnits)
-            table.add("  ✦ ${unit.getName()} (HP ${unit.health})".toLabel(Color.GREEN, 14)).left().row()
+            table.add("  ✦ ${unit.getName()} (HP ${unit.currentHealth})".toLabel(Color.GREEN, 14)).left().row()
         for (unit in context.enemyUnits)
-            table.add("  ✦ ${unit.getName()} (HP ${unit.health})".toLabel(Color.RED, 14)).left().row()
+            table.add("  ✦ ${unit.getName()} (HP ${unit.currentHealth})".toLabel(Color.RED, 14)).left().row()
 
         return table
     }

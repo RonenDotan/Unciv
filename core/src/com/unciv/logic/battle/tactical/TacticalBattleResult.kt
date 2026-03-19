@@ -42,7 +42,7 @@ class TacticalBattleResult(
             when (tacticalUnit.state) {
                 TacticalUnitState.DEAD -> unit.destroy()
                 else -> {
-                    unit.health = tacticalUnit.health.coerceAtLeast(1)
+                    unit.health = tacticalUnit.currentHealth.coerceAtLeast(1)
                 }
             }
             // All participants expend their remaining movement and attacks

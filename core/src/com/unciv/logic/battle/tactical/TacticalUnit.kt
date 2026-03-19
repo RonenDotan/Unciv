@@ -1,7 +1,6 @@
 package com.unciv.logic.battle.tactical
 
 import com.badlogic.gdx.math.Vector2
-import com.unciv.logic.battle.CombatAction
 import com.unciv.logic.battle.ICombatant
 import com.unciv.logic.battle.MapUnitCombatant
 import com.unciv.logic.civilization.Civilization
@@ -26,7 +25,7 @@ class TacticalUnit(val sourceUnit: MapUnit) : ICombatant {
     var currentTarget: TacticalUnit? = null
 
     // --- Health (independent from sourceUnit.health during battle) ---
-    var health: Int = sourceUnit.health
+    var currentHealth: Int = sourceUnit.health
 
     // --- Derived combat stats ---
     val isRangedUnit: Boolean = sourceUnit.baseUnit.isRanged()
@@ -51,12 +50,12 @@ class TacticalUnit(val sourceUnit: MapUnit) : ICombatant {
     // takeDamage() affects only this TacticalUnit's health, NOT the source MapUnit.
 
     override fun getName(): String = sourceUnit.name
-    override fun getHealth(): Int = health
+    override fun getHealth(): Int = currentHealth
     override fun getMaxHealth(): Int = 100
     override fun getUnitType(): UnitType = sourceUnit.type
     override fun getCivInfo(): Civilization = sourceUnit.civ
     override fun getTile(): Tile = currentTile
-    override fun isDefeated(): Boolean = health <= 0
+    override fun isDefeated(): Boolean = currentHealth <= 0
     override fun isInvisible(to: Civilization): Boolean = sourceUnit.isInvisible(to)
     override fun canAttack(): Boolean = cooldownRemaining <= 0f && state != TacticalUnitState.DEAD
     override fun matchesFilter(filter: String, multiFilter: Boolean): Boolean =
@@ -64,8 +63,8 @@ class TacticalUnit(val sourceUnit: MapUnit) : ICombatant {
     override fun getAttackSound(): UncivSound = MapUnitCombatant(sourceUnit).getAttackSound()
 
     override fun takeDamage(damage: Int) {
-        health = (health - damage).coerceAtLeast(0)
-        if (health <= 0) state = TacticalUnitState.DEAD
+        currentHealth = (currentHealth - damage).coerceAtLeast(0)
+        if (currentHealth <= 0) state = TacticalUnitState.DEAD
     }
 
     override fun getAttackingStrength(defender: ICombatant?): Int =
