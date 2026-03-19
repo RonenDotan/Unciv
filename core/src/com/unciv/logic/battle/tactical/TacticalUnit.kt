@@ -48,36 +48,62 @@ class TacticalUnit(val sourceUnit: MapUnit) : ICombatant {
 
     var cooldownRemaining: Float = 0f
 
+    /** Player-commanded move destination. Overrides AI when set. Cleared when reached. */
+    var commandedDestination: Vector2? = null
+
+    /** Player-commanded attack target. Overrides AI target selection when set. */
+    var commandedTarget: TacticalUnit? = null
+
     val isPlayerControlled: Boolean
         get() = sourceUnit.civ.isHuman()
 
     /**
      * Advances this unit's state machine by [delta] seconds.
      * [enemies] is the list of opposing TacticalUnits.
+     * Player commands ([commandedDestination], [commandedTarget]) take priority over AI logic.
      */
     fun update(delta: Float, enemies: List<TacticalUnit>) {
         if (state == TacticalUnitState.DEAD || state == TacticalUnitState.ESCAPED) return
 
         cooldownRemaining = (cooldownRemaining - delta).coerceAtLeast(0f)
 
+        // Clear stale commanded target
+        if (commandedTarget?.state == TacticalUnitState.DEAD ||
+            commandedTarget?.state == TacticalUnitState.ESCAPED) {
+            commandedTarget = null
+        }
+
+        // Player move command: go to destination, ignoring enemies
+        val dest = commandedDestination
+        if (dest != null) {
+            val distToDest = worldPos.dst(dest)
+            if (distToDest < 5f) {
+                commandedDestination = null  // arrived
+            } else {
+                state = TacticalUnitState.MOVING
+                val dir = dest.cpy().sub(worldPos).nor()
+                worldPos.add(dir.scl(moveSpeed * delta))
+                return
+            }
+        }
+
+        // Determine target: player command > AI nearest-enemy
         val aliveEnemies = enemies.filter {
             it.state != TacticalUnitState.DEAD && it.state != TacticalUnitState.ESCAPED
         }
-        if (aliveEnemies.isEmpty()) {
-            state = TacticalUnitState.IDLE
-            return
-        }
+        if (aliveEnemies.isEmpty()) { state = TacticalUnitState.IDLE; return }
 
-        // Re-target if needed
-        if (currentTarget == null ||
-            currentTarget!!.state == TacticalUnitState.DEAD ||
-            currentTarget!!.state == TacticalUnitState.ESCAPED) {
-            currentTarget = aliveEnemies.minByOrNull { it.worldPos.dst(worldPos) }
-        }
+        val target = commandedTarget
+            ?: run {
+                if (currentTarget == null ||
+                    currentTarget!!.state == TacticalUnitState.DEAD ||
+                    currentTarget!!.state == TacticalUnitState.ESCAPED) {
+                    currentTarget = aliveEnemies.minByOrNull { it.worldPos.dst(worldPos) }
+                }
+                currentTarget
+            } ?: return
 
-        val target = currentTarget ?: return
         val dist = worldPos.dst(target.worldPos)
-
         if (dist <= attackRangePixels) {
             state = TacticalUnitState.ATTACKING
             if (cooldownRemaining <= 0f) {
@@ -138,9 +164,9 @@ class TacticalUnit(val sourceUnit: MapUnit) : ICombatant {
         val SQRT3 = sqrt(3.0).toFloat()
 
         /** Pixels-per-second per 1 movement point */
-        const val SPEED_SCALE = 25f
+        const val SPEED_SCALE = 12f
 
-        const val MELEE_COOLDOWN = 1.5f
-        const val RANGED_COOLDOWN = 2.0f
+        const val MELEE_COOLDOWN = 4f
+        const val RANGED_COOLDOWN = 5f
     }
 }

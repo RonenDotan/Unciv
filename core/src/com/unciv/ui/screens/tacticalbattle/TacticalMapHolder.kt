@@ -46,15 +46,17 @@ class TacticalMapHolder(context: TacticalBattleContext) : ZoomableScrollPane(20f
 
         // Update each tile group once so terrain/features render correctly.
         val uniqueCache = LocalUniqueCache(false)
-        for (tg in tileGroups) tg.update(null, uniqueCache)
+        for (tg in tileGroups) {
+            tg.update(null, uniqueCache)
+            // Hide unit layers — units are represented by TacticalUnitActors instead
+            tg.layerUnitArt.isVisible = false
+            tg.layerUnitFlag.isVisible = false
+        }
 
         // Unit actors layer sits above everything in the tile map.
         tileGroupMap.addActor(unitLayer)
 
         actor = tileGroupMap
-
-        // Center scroll on the battle center tile.
-        scrollToCenter()
     }
 
     /**
@@ -67,10 +69,15 @@ class TacticalMapHolder(context: TacticalBattleContext) : ZoomableScrollPane(20f
         return Vector2(tg.x + tg.width / 2f, tg.y + tg.height / 2f)
     }
 
-    private fun scrollToCenter() {
-        // Layout must happen first so scroll dimensions are set.
+    /**
+     * Scrolls the map so [tile] is centered in the viewport.
+     * Call after the stage has been laid out (e.g. from show()).
+     */
+    fun centerOnTile(tile: com.unciv.logic.map.tile.Tile) {
         layout()
-        scrollPercentX = 0.5f
-        scrollPercentY = 0.5f
+        val pos = getWorldPos(tile) ?: run { scrollPercentX = 0.5f; scrollPercentY = 0.5f; return }
+        scrollX = (pos.x - width / 2f).coerceAtLeast(0f)
+        scrollY = (pos.y - height / 2f).coerceAtLeast(0f)
+        updateVisualScroll()
     }
 }
