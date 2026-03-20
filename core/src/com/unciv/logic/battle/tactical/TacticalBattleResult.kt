@@ -1,28 +1,16 @@
 package com.unciv.logic.battle.tactical
 
-import com.unciv.logic.map.mapunit.MapUnit
+import com.unciv.logic.map.tile.Tile
 
 /**
  * The outcome of a tactical battle, produced when the battle screen closes.
  * Applied to the main game state via [applyToGame].
  */
-class TacticalBattleResult(
-    val playerUnits: List<TacticalUnit>,
-    val enemyUnits: List<TacticalUnit>
-) {
-    val allUnits: List<TacticalUnit> get() = playerUnits + enemyUnits
+class TacticalBattleResult(private val context: TacticalBattleContext) {
 
-    val killedPlayerUnits: List<MapUnit>
-        get() = playerUnits.filter { it.state == TacticalUnitState.DEAD }.map { it.sourceUnit }
-
-    val killedEnemyUnits: List<MapUnit>
-        get() = enemyUnits.filter { it.state == TacticalUnitState.DEAD }.map { it.sourceUnit }
-
-    val escapedPlayerUnits: List<MapUnit>
-        get() = playerUnits.filter { it.state == TacticalUnitState.ESCAPED }.map { it.sourceUnit }
-
-    val escapedEnemyUnits: List<MapUnit>
-        get() = enemyUnits.filter { it.state == TacticalUnitState.ESCAPED }.map { it.sourceUnit }
+    val playerUnits get() = context.playerUnits
+    val enemyUnits  get() = context.enemyUnits
+    val allUnits    get() = context.allUnits
 
     val playerWon: Boolean
         get() = enemyUnits.all { it.state == TacticalUnitState.DEAD || it.state == TacticalUnitState.ESCAPED }
@@ -32,24 +20,46 @@ class TacticalBattleResult(
 
     /**
      * Writes battle results back to the main game state:
-     * - Destroys killed units
+     * - Repositions survivors to the nearest battle tile matching their final worldPos
      * - Copies health back to survivors
-     * - Zeros out movement for all participants (they used their turn)
+     * - Destroys killed units
+     * - Zeros out movement/attacks for all participants
      */
     fun applyToGame() {
-        for (tacticalUnit in allUnits) {
+        val usedTiles = mutableSetOf<Tile>()
+
+        val survivors = allUnits.filter { it.state != TacticalUnitState.DEAD && it.state != TacticalUnitState.ESCAPED }
+        val dead      = allUnits.filter { it.state == TacticalUnitState.DEAD }
+
+        // Reposition survivors to the nearest available battle tile
+        for (tacticalUnit in survivors) {
             val unit = tacticalUnit.sourceUnit
-            when (tacticalUnit.state) {
-                TacticalUnitState.DEAD -> unit.destroy()
-                else -> {
-                    unit.health = tacticalUnit.currentHealth.coerceAtLeast(1)
+            unit.health = tacticalUnit.currentHealth.coerceAtLeast(1)
+
+            // finalTile is resolved in TacticalBattleScreen using mapHolder coordinates
+            // so both sides are in the same coordinate space
+            val targetTile = tacticalUnit.finalTile
+            val nearestTile = if (targetTile != null && targetTile !in usedTiles && unit.movement.canMoveTo(targetTile))
+                targetTile
+            else
+                context.tiles
+                    .filter { it !in usedTiles && unit.movement.canMoveTo(it) }
+                    .minByOrNull { TacticalBattleContext.tileToWorldPos(it).dst(tacticalUnit.worldPos) }
+
+            if (nearestTile != null) {
+                usedTiles.add(nearestTile)
+                if (nearestTile != unit.getTile()) {
+                    unit.removeFromTile()
+                    unit.putInTile(nearestTile)
                 }
             }
-            // All participants expend their remaining movement and attacks
-            if (tacticalUnit.state != TacticalUnitState.DEAD) {
-                unit.currentMovement = 0f
-                unit.attacksThisTurn = unit.maxAttacksPerTurn()
-            }
+
+            unit.currentMovement = 0f
+            unit.attacksThisTurn = unit.maxAttacksPerTurn()
+        }
+
+        for (tacticalUnit in dead) {
+            tacticalUnit.sourceUnit.destroy()
         }
     }
 }

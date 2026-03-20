@@ -27,7 +27,8 @@ import com.unciv.ui.screens.basescreen.BaseScreen
  */
 class TacticalBattleScreen(private val context: TacticalBattleContext) : BaseScreen() {
 
-    private val result = TacticalBattleResult(context.playerUnits, context.enemyUnits)
+    private val result = TacticalBattleResult(context)
+    private val spriteSize = com.unciv.ui.components.tilegroups.TileGroupMap.groupSize * 1.5f
     private val healthLabels = mutableMapOf<TacticalUnit, Label>()
     private val resultLabel = "".toLabel(Color.GOLD, 24).apply { setAlignment(Align.center) }
     private val unitActors = mutableMapOf<TacticalUnit, TacticalUnitActor>()
@@ -162,6 +163,19 @@ class TacticalBattleScreen(private val context: TacticalBattleContext) : BaseScr
         for (unit in context.playerUnits) unit.update(cappedDelta, context.enemyUnits)
         for (unit in context.enemyUnits) unit.update(cappedDelta, context.playerUnits)
 
+        // Spawn visual effects before updateFromUnit resets the flags
+        for (unit in context.allUnits) {
+            if (unit.wasHitThisFrame) {
+                mapHolder.unitLayer.addActor(FloatingTextActor(unit.lastDamageTaken, unit.worldPos.x, unit.worldPos.y + 40f))
+                if (unit.state == TacticalUnitState.DEAD)
+                    mapHolder.unitLayer.addActor(DeathEffectActor(unit.worldPos.x, unit.worldPos.y, spriteSize * 1.2f))
+            }
+            if (unit.wasAttackingThisFrame)
+                unit.lastAttackTargetWorldPos?.let { target ->
+                    mapHolder.unitLayer.addActor(AttackLineActor(unit.worldPos.x, unit.worldPos.y, target.x, target.y))
+                }
+        }
+
         for ((unit, actor) in unitActors) {
             actor.centerOn(unit.worldPos.x, unit.worldPos.y)
             actor.updateFromUnit(cappedDelta)
@@ -182,14 +196,19 @@ class TacticalBattleScreen(private val context: TacticalBattleContext) : BaseScr
         Gdx.graphics.isContinuousRendering = true
         Gdx.app.postRunnable {
             stage.act(0f)  // force table layout so mapHolder gets its actual width/height
-            val mapContent = mapHolder.actor
-            if (mapContent != null && mapHolder.width > 0f && mapHolder.height > 0f) {
-                val zoomX = mapHolder.width * 1.8f / mapContent.width
-                val zoomY = mapHolder.height * 1.8f / mapContent.height
-                val targetZoom = minOf(zoomX, zoomY).coerceIn(mapHolder.minZoom, mapHolder.maxZoom)
-                mapHolder.zoom(targetZoom)
-            }
-            mapHolder.centerOnTile(context.centerTile)
+            val mapContent = mapHolder.actor ?: return@postRunnable
+            if (mapHolder.width <= 0f || mapHolder.height <= 0f) return@postRunnable
+
+            val zoomX = mapHolder.width * 1.8f / mapContent.width
+            val zoomY = mapHolder.height * 1.8f / mapContent.height
+            val targetZoom = minOf(zoomX, zoomY).coerceIn(mapHolder.minZoom, mapHolder.maxZoom)
+            mapHolder.zoom(targetZoom)
+
+            // Center on the battlefield — scrollPercent 0.5 works for both cases:
+            // when content fits inside viewport (padding handles it) and when larger.
+            mapHolder.scrollPercentX = 0.5f
+            mapHolder.scrollPercentY = 0.5f
+            mapHolder.updateVisualScroll()
         }
     }
 
@@ -207,6 +226,20 @@ class TacticalBattleScreen(private val context: TacticalBattleContext) : BaseScr
     }
 
     private fun dismiss() {
+        // Resolve each survivor's nearest tile using mapHolder coordinates (same space as worldPos)
+        val usedTiles = mutableSetOf<com.unciv.logic.map.tile.Tile>()
+        for (unit in context.allUnits.filter { it.state != com.unciv.logic.battle.tactical.TacticalUnitState.DEAD }) {
+            val nearest = context.tiles
+                .filter { tile ->
+                    val pos = mapHolder.getWorldPos(tile)
+                    pos != null && tile !in usedTiles && unit.sourceUnit.movement.canMoveTo(tile)
+                }
+                .minByOrNull { tile -> mapHolder.getWorldPos(tile)!!.dst(unit.worldPos) }
+            if (nearest != null) {
+                unit.finalTile = nearest
+                usedTiles.add(nearest)
+            }
+        }
         result.applyToGame()
         game.popScreen()
     }

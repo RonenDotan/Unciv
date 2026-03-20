@@ -1,6 +1,13 @@
 package com.unciv.ui.screens.tacticalbattle
 
+import com.badlogic.gdx.Gdx
 import com.badlogic.gdx.graphics.Color
+import com.badlogic.gdx.graphics.GL20
+import com.badlogic.gdx.graphics.g2d.Batch
+import com.badlogic.gdx.graphics.glutils.ShaderProgram
+import com.badlogic.gdx.graphics.glutils.ShapeRenderer
+import com.badlogic.gdx.math.Vector2
+import com.badlogic.gdx.scenes.scene2d.Actor
 import com.badlogic.gdx.scenes.scene2d.Group
 import com.badlogic.gdx.scenes.scene2d.InputEvent
 import com.badlogic.gdx.scenes.scene2d.InputListener
@@ -14,6 +21,46 @@ import com.unciv.ui.images.ImageGetter
 import com.unciv.models.UncivSound
 
 private const val HIT_FLASH_DURATION = 0.3f
+
+/**
+ * Draws a clock-style arc above the unit showing remaining attack cooldown.
+ * Dark circle background, blue arc sweeps clockwise from full → empty as the cooldown counts down.
+ */
+private class CooldownIndicator(private val clockSize: Float) : Actor() {
+    /** 1.0 = just attacked (full wait), 0.0 = ready to attack (hidden) */
+    var fraction = 0f
+
+    private val stagePos = Vector2()
+
+    init { setSize(clockSize, clockSize) }
+
+    override fun draw(batch: Batch, parentAlpha: Float) {
+        if (fraction <= 0.01f) return
+        localToStageCoordinates(stagePos.set(0f, 0f))
+        val cx = stagePos.x + clockSize / 2f
+        val cy = stagePos.y + clockSize / 2f
+        val r  = clockSize / 2f
+
+        batch.end()
+        shapeRenderer.projectionMatrix = stage.camera.combined
+        Gdx.gl.glEnable(GL20.GL_BLEND)
+        Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA)
+        shapeRenderer.begin(ShapeRenderer.ShapeType.Filled)
+        // Dark background circle
+        shapeRenderer.setColor(0f, 0f, 0f, 0.65f * parentAlpha)
+        shapeRenderer.circle(cx, cy, r, 32)
+        // Blue arc = remaining cooldown (sweeps clockwise from 12 o'clock)
+        shapeRenderer.setColor(0.15f, 0.55f, 1f, 0.9f * parentAlpha)
+        shapeRenderer.arc(cx, cy, r * 0.78f, 90f, -fraction * 360f, 32)
+        shapeRenderer.end()
+        Gdx.gl.glDisable(GL20.GL_BLEND)
+        batch.begin()
+    }
+
+    companion object {
+        val shapeRenderer: ShapeRenderer by lazy { ShapeRenderer() }
+    }
+}
 
 /**
  * Scene2D actor representing a [TacticalUnit] on the battle map.
@@ -30,6 +77,8 @@ class TacticalUnitActor(
     private val healthBarFg: Image
     private val selectionRing: Image
     private val hitFlashOverlay: Image
+    private val attackFlashOverlay: Image
+    private val cooldownIndicator: CooldownIndicator
 
     private val spriteSize = TileGroupMap.groupSize * 1.5f  // 75f
     private val barHeight = 4f
@@ -42,6 +91,7 @@ class TacticalUnitActor(
         }
 
     private var hitFlashTimer = 0f
+    private var attackFlashTimer = 0f
     private var displayAlpha = 1f
 
     init {
@@ -92,6 +142,21 @@ class TacticalUnitActor(
         }
         addActor(hitFlashOverlay)
 
+        // Blue circle that flashes when this unit attacks
+        attackFlashOverlay = ImageGetter.getCircle(Color.BLUE).apply {
+            setSize(ringSize, ringSize)
+            setPosition(spriteSize / 2f - ringSize / 2f, (barHeight + 2f) + spriteSize / 2f - ringSize / 2f)
+            color.a = 0f
+        }
+        addActor(attackFlashOverlay)
+
+        // Cooldown clock arc — shown above the sprite
+        val clockSize = spriteSize * 0.45f
+        cooldownIndicator = CooldownIndicator(clockSize).apply {
+            setPosition(spriteSize / 2f - clockSize / 2f, barHeight + 2f + spriteSize + 4f)
+        }
+        addActor(cooldownIndicator)
+
         // --- Health bar ---
         healthBarBg = ImageGetter.getDot(Color.DARK_GRAY).apply {
             setSize(barWidth, barHeight)
@@ -114,15 +179,27 @@ class TacticalUnitActor(
         })
     }
 
-    /** Sync health bar, hit flash, and opacity with current unit state. */
+    /** Sync health bar, hit flash, cooldown clock, and opacity with current unit state. */
     fun updateFromUnit(delta: Float) {
-        // Hit flash: turn red briefly when damage is received
+        // Hit flash: red circle on the defender
         if (tacticalUnit.wasHitThisFrame) {
             tacticalUnit.wasHitThisFrame = false
             hitFlashTimer = HIT_FLASH_DURATION
         }
         hitFlashTimer = (hitFlashTimer - delta).coerceAtLeast(0f)
         hitFlashOverlay.color.a = (hitFlashTimer / HIT_FLASH_DURATION) * 0.7f
+
+        // Attack flash: blue circle on the attacker
+        if (tacticalUnit.wasAttackingThisFrame) {
+            tacticalUnit.wasAttackingThisFrame = false
+            attackFlashTimer = HIT_FLASH_DURATION
+        }
+        attackFlashTimer = (attackFlashTimer - delta).coerceAtLeast(0f)
+        attackFlashOverlay.color.a = (attackFlashTimer / HIT_FLASH_DURATION) * 0.7f
+
+        // Cooldown clock arc
+        cooldownIndicator.fraction = (tacticalUnit.cooldownRemaining / tacticalUnit.attackCooldownSeconds)
+            .coerceIn(0f, 1f)
 
         // Smooth fade to 25% alpha on death
         val targetAlpha = if (tacticalUnit.state == TacticalUnitState.DEAD) 0.25f else 1f

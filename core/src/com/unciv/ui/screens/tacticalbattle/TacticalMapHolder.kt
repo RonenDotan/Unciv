@@ -76,7 +76,7 @@ class TacticalMapHolder(context: TacticalBattleContext) : ZoomableScrollPane(20f
      * Call after the stage has been laid out (e.g. from show()).
      */
     fun centerOnTile(tile: com.unciv.logic.map.tile.Tile) {
-        layout()
+        if (width == 0f) { scrollPercentX = 0.5f; scrollPercentY = 0.5f; return }
         val pos = getWorldPos(tile) ?: run { scrollPercentX = 0.5f; scrollPercentY = 0.5f; return }
         scrollX = (pos.x - width / 2f).coerceAtLeast(0f)
         scrollY = (pos.y - height / 2f).coerceAtLeast(0f)

@@ -28,7 +28,13 @@ class TacticalUnit(val sourceUnit: MapUnit) : ICombatant {
 
     // --- Health (independent from sourceUnit.health during battle) ---
     var currentHealth: Int = sourceUnit.health
+    /** Set by TacticalBattleScreen before applyToGame() — the closest real tile to the unit's final position. */
+    var finalTile: Tile? = null
+
     var wasHitThisFrame: Boolean = false
+    var lastDamageTaken: Int = 0
+    var wasAttackingThisFrame: Boolean = false
+    var lastAttackTargetWorldPos: Vector2? = null
 
     // --- Derived combat stats ---
     val isRangedUnit: Boolean = sourceUnit.baseUnit.isRanged()
@@ -112,6 +118,8 @@ class TacticalUnit(val sourceUnit: MapUnit) : ICombatant {
                     this, target, currentTile, randomnessFactor = 0.5f
                 ).coerceAtLeast(1)
                 target.takeDamage(damage)
+                wasAttackingThisFrame = true
+                lastAttackTargetWorldPos = target.worldPos.cpy()
                 cooldownRemaining = attackCooldownSeconds
             }
         } else {
@@ -141,6 +149,7 @@ class TacticalUnit(val sourceUnit: MapUnit) : ICombatant {
     override fun takeDamage(damage: Int) {
         currentHealth = (currentHealth - damage).coerceAtLeast(0)
         wasHitThisFrame = true
+        lastDamageTaken = damage
         if (currentHealth <= 0) state = TacticalUnitState.DEAD
     }
 
