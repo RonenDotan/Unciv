@@ -33,6 +33,7 @@ class TacticalBattleScreen(private val context: TacticalBattleContext) : BaseScr
     private val unitActors = mutableMapOf<TacticalUnit, TacticalUnitActor>()
     private val mapHolder = TacticalMapHolder(context)
     private var battleOver = false
+    private var battleStarted = false
     private var speedMultiplier = 0f  // starts paused
     private var selectedUnit: TacticalUnit? = null
     private var startButton: Label? = null
@@ -56,6 +57,7 @@ class TacticalBattleScreen(private val context: TacticalBattleContext) : BaseScr
         startButton = btn
         btnTable.add(btn).pad(20f)
         btnTable.onClick(UncivSound.Silent) {
+            battleStarted = true
             speedMultiplier = 1f
             startOverlay.remove()
         }
@@ -117,7 +119,7 @@ class TacticalBattleScreen(private val context: TacticalBattleContext) : BaseScr
         val speedRow = Table()
         for ((label, speed) in listOf("⏸" to 0f, "▶" to 1f, "▶▶" to 2f)) {
             val btn = label.toLabel(Color.WHITE, 18).apply { setAlignment(Align.center) }
-            btn.onClick(UncivSound.Silent) { speedMultiplier = speed }
+            btn.onClick(UncivSound.Silent) { if (battleStarted) speedMultiplier = speed }
             speedRow.add(btn).width(50f).height(30f).padRight(8f)
         }
         bottomPanel.add(speedRow).colspan(2).padBottom(4f).row()
@@ -148,7 +150,7 @@ class TacticalBattleScreen(private val context: TacticalBattleContext) : BaseScr
 
         hud.keyShortcuts.add(Input.Keys.ESCAPE) { dismiss() }
         hud.keyShortcuts.add(Input.Keys.ENTER) { if (battleOver) dismiss() }
-        hud.keyShortcuts.add(Input.Keys.SPACE) { speedMultiplier = if (speedMultiplier == 0f) 1f else 0f }
+        hud.keyShortcuts.add(Input.Keys.SPACE) { if (battleStarted) speedMultiplier = if (speedMultiplier == 0f) 1f else 0f }
 
         return hud
     }
@@ -178,8 +180,17 @@ class TacticalBattleScreen(private val context: TacticalBattleContext) : BaseScr
     override fun show() {
         super.show()
         Gdx.graphics.isContinuousRendering = true
-        // Center map on the battle tile after layout is complete
-        Gdx.app.postRunnable { mapHolder.centerOnTile(context.centerTile) }
+        Gdx.app.postRunnable {
+            stage.act(0f)  // force table layout so mapHolder gets its actual width/height
+            val mapContent = mapHolder.actor
+            if (mapContent != null && mapHolder.width > 0f && mapHolder.height > 0f) {
+                val zoomX = mapHolder.width * 1.8f / mapContent.width
+                val zoomY = mapHolder.height * 1.8f / mapContent.height
+                val targetZoom = minOf(zoomX, zoomY).coerceIn(mapHolder.minZoom, mapHolder.maxZoom)
+                mapHolder.zoom(targetZoom)
+            }
+            mapHolder.centerOnTile(context.centerTile)
+        }
     }
 
     override fun hide() {

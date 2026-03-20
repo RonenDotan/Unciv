@@ -28,7 +28,7 @@ class TacticalMapHolder(context: TacticalBattleContext) : ZoomableScrollPane(20f
 
     init {
         minZoom = 0.5f
-        maxZoom = 2.0f
+        maxZoom = 5.0f
 
         tileSetStrings = TileSetStrings(
             UncivGame.Current.gameInfo!!.ruleset,
@@ -54,6 +54,8 @@ class TacticalMapHolder(context: TacticalBattleContext) : ZoomableScrollPane(20f
         }
 
         // Unit actors layer sits above everything in the tile map.
+        // Must match tileGroupMap size so it isn't culled when the viewport scrolls.
+        unitLayer.setSize(tileGroupMap.width, tileGroupMap.height)
         tileGroupMap.addActor(unitLayer)
 
         actor = tileGroupMap
