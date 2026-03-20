@@ -164,7 +164,7 @@ class TacticalBattleScreen(private val context: TacticalBattleContext) : BaseScr
 
         for ((unit, actor) in unitActors) {
             actor.centerOn(unit.worldPos.x, unit.worldPos.y)
-            actor.updateFromUnit()
+            actor.updateFromUnit(cappedDelta)
         }
         for ((unit, label) in healthLabels) {
             val state = if (unit.state == TacticalUnitState.DEAD) "DEAD" else "HP:${unit.currentHealth}"

@@ -13,6 +13,8 @@ import com.unciv.ui.components.tilegroups.TileSetStrings
 import com.unciv.ui.images.ImageGetter
 import com.unciv.models.UncivSound
 
+private const val HIT_FLASH_DURATION = 0.3f
+
 /**
  * Scene2D actor representing a [TacticalUnit] on the battle map.
  * Uses the pixel unit sprite when available, falls back to a small icon.
@@ -27,6 +29,7 @@ class TacticalUnitActor(
     private val healthBarBg: Image
     private val healthBarFg: Image
     private val selectionRing: Image
+    private val hitFlashOverlay: Image
 
     private val spriteSize = TileGroupMap.groupSize * 1.5f  // 75f
     private val barHeight = 4f
@@ -38,16 +41,20 @@ class TacticalUnitActor(
             selectionRing.isVisible = value
         }
 
+    private var hitFlashTimer = 0f
+    private var displayAlpha = 1f
+
     init {
         touchable = Touchable.enabled
         setSize(spriteSize, spriteSize + barHeight + 2f)
 
-        // --- Selection ring (yellow, behind sprite) ---
-        selectionRing = ImageGetter.getDot(Color.YELLOW).apply {
-            setSize(spriteSize + 6f, spriteSize + 6f)
-            setPosition(-3f, barHeight - 1f)
+        // --- Selection ring: small yellow circle centered on the sprite ---
+        val ringSize = spriteSize * 0.55f
+        selectionRing = ImageGetter.getCircle(Color.YELLOW).apply {
+            setSize(ringSize, ringSize)
+            setPosition(spriteSize / 2f - ringSize / 2f, (barHeight + 2f) + spriteSize / 2f - ringSize / 2f)
             isVisible = false
-            color.a = 0.7f
+            color.a = 0.85f
         }
         addActor(selectionRing)
 
@@ -77,6 +84,14 @@ class TacticalUnitActor(
         sprite.setPosition(0f, barHeight + 2f)
         addActor(sprite)
 
+        // Red circle that flashes on hit
+        hitFlashOverlay = ImageGetter.getCircle(Color.RED).apply {
+            setSize(ringSize, ringSize)
+            setPosition(spriteSize / 2f - ringSize / 2f, (barHeight + 2f) + spriteSize / 2f - ringSize / 2f)
+            color.a = 0f
+        }
+        addActor(hitFlashOverlay)
+
         // --- Health bar ---
         healthBarBg = ImageGetter.getDot(Color.DARK_GRAY).apply {
             setSize(barWidth, barHeight)
@@ -99,8 +114,22 @@ class TacticalUnitActor(
         })
     }
 
-    /** Sync health bar and opacity with current unit state. */
-    fun updateFromUnit() {
+    /** Sync health bar, hit flash, and opacity with current unit state. */
+    fun updateFromUnit(delta: Float) {
+        // Hit flash: turn red briefly when damage is received
+        if (tacticalUnit.wasHitThisFrame) {
+            tacticalUnit.wasHitThisFrame = false
+            hitFlashTimer = HIT_FLASH_DURATION
+        }
+        hitFlashTimer = (hitFlashTimer - delta).coerceAtLeast(0f)
+        hitFlashOverlay.color.a = (hitFlashTimer / HIT_FLASH_DURATION) * 0.7f
+
+        // Smooth fade to 25% alpha on death
+        val targetAlpha = if (tacticalUnit.state == TacticalUnitState.DEAD) 0.25f else 1f
+        displayAlpha += (targetAlpha - displayAlpha) * (delta * 4f)
+        color.a = displayAlpha
+
+        // Health bar
         val healthFraction = (tacticalUnit.currentHealth / 100f).coerceIn(0f, 1f)
         healthBarFg.setSize(barWidth * healthFraction, barHeight)
         healthBarFg.color = when {
@@ -108,8 +137,6 @@ class TacticalUnitActor(
             healthFraction > 0.3f -> Color.ORANGE
             else -> Color.RED
         }
-        color.a = if (tacticalUnit.state == TacticalUnitState.DEAD) 0.25f else 1f
-        selectionRing.isVisible = isSelected
     }
 
     /** Centers this actor on [worldX], [worldY] in TileGroupMap coordinates. */

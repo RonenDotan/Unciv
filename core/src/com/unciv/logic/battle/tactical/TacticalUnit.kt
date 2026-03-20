@@ -28,6 +28,7 @@ class TacticalUnit(val sourceUnit: MapUnit) : ICombatant {
 
     // --- Health (independent from sourceUnit.health during battle) ---
     var currentHealth: Int = sourceUnit.health
+    var wasHitThisFrame: Boolean = false
 
     // --- Derived combat stats ---
     val isRangedUnit: Boolean = sourceUnit.baseUnit.isRanged()
@@ -139,6 +140,7 @@ class TacticalUnit(val sourceUnit: MapUnit) : ICombatant {
 
     override fun takeDamage(damage: Int) {
         currentHealth = (currentHealth - damage).coerceAtLeast(0)
+        wasHitThisFrame = true
         if (currentHealth <= 0) state = TacticalUnitState.DEAD
     }
 
@@ -164,9 +166,9 @@ class TacticalUnit(val sourceUnit: MapUnit) : ICombatant {
         val SQRT3 = sqrt(3.0).toFloat()
 
         /** Pixels-per-second per 1 movement point */
-        const val SPEED_SCALE = 12f
+        const val SPEED_SCALE = 5f
 
-        const val MELEE_COOLDOWN = 4f
-        const val RANGED_COOLDOWN = 5f
+        const val MELEE_COOLDOWN = 8f
+        const val RANGED_COOLDOWN = 10f
     }
 }
