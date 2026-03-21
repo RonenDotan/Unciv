@@ -175,7 +175,7 @@ class TacticalUnit(val sourceUnit: MapUnit) : ICombatant {
         val SQRT3 = sqrt(3.0).toFloat()
 
         /** Pixels-per-second per 1 movement point */
-        const val SPEED_SCALE = 5f
+        const val SPEED_SCALE = 2f
 
         const val MELEE_COOLDOWN = 8f
         const val RANGED_COOLDOWN = 10f

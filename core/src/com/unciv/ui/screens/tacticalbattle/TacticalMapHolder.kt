@@ -28,7 +28,7 @@ class TacticalMapHolder(context: TacticalBattleContext) : ZoomableScrollPane(20f
 
     init {
         minZoom = 0.5f
-        maxZoom = 5.0f
+        maxZoom = 10.0f
 
         tileSetStrings = TileSetStrings(
             UncivGame.Current.gameInfo!!.ruleset,

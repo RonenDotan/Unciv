@@ -9,7 +9,9 @@ import com.badlogic.gdx.scenes.scene2d.InputEvent
 import com.badlogic.gdx.scenes.scene2d.InputListener
 import com.badlogic.gdx.scenes.scene2d.Touchable
 import com.badlogic.gdx.scenes.scene2d.ui.Label
+import com.badlogic.gdx.scenes.scene2d.ui.Slider
 import com.badlogic.gdx.scenes.scene2d.ui.Table
+import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener
 import com.badlogic.gdx.utils.Align
 import com.unciv.logic.battle.tactical.TacticalBattleContext
 import com.unciv.logic.battle.tactical.TacticalBattleResult
@@ -38,6 +40,8 @@ class TacticalBattleScreen(private val context: TacticalBattleContext) : BaseScr
     private var speedMultiplier = 0f  // starts paused
     private var selectedUnit: TacticalUnit? = null
     private var startButton: Label? = null
+    private var zoomSlider: Slider? = null
+    private var updatingSlider = false
 
     init {
         val mapTable = Table()
@@ -115,6 +119,20 @@ class TacticalBattleScreen(private val context: TacticalBattleContext) : BaseScr
             "General/Border", tintColor = Color(0f, 0f, 0f, 0.75f)
         )
         bottomPanel.pad(8f)
+
+        // Zoom slider
+        val slider = Slider(mapHolder.minZoom, mapHolder.maxZoom, 0.1f, false, skin)
+        slider.value = mapHolder.scaleX
+        slider.addListener(object : ChangeListener() {
+            override fun changed(event: ChangeEvent, actor: com.badlogic.gdx.scenes.scene2d.Actor) {
+                if (!updatingSlider) mapHolder.zoom(slider.value)
+            }
+        })
+        zoomSlider = slider
+        val zoomRow = Table()
+        zoomRow.add("🔍".toLabel(Color.WHITE, 14)).padRight(6f)
+        zoomRow.add(slider).width(180f).height(24f)
+        bottomPanel.add(zoomRow).colspan(2).padBottom(4f).row()
 
         // Speed buttons row
         val speedRow = Table()
@@ -199,8 +217,8 @@ class TacticalBattleScreen(private val context: TacticalBattleContext) : BaseScr
             val mapContent = mapHolder.actor ?: return@postRunnable
             if (mapHolder.width <= 0f || mapHolder.height <= 0f) return@postRunnable
 
-            val zoomX = mapHolder.width * 1.8f / mapContent.width
-            val zoomY = mapHolder.height * 1.8f / mapContent.height
+            val zoomX = mapHolder.width * 2.5f / mapContent.width
+            val zoomY = mapHolder.height * 2.5f / mapContent.height
             val targetZoom = minOf(zoomX, zoomY).coerceIn(mapHolder.minZoom, mapHolder.maxZoom)
             mapHolder.zoom(targetZoom)
 
@@ -221,6 +239,15 @@ class TacticalBattleScreen(private val context: TacticalBattleContext) : BaseScr
         Gdx.gl.glClearColor(0f, 0f, 0.05f, 1f)
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT)
         simulationStep(delta)
+        // Keep slider in sync with pinch/scroll zoom
+        zoomSlider?.let { s ->
+            val currentZoom = mapHolder.scaleX
+            if (kotlin.math.abs(s.value - currentZoom) > 0.05f) {
+                updatingSlider = true
+                s.value = currentZoom
+                updatingSlider = false
+            }
+        }
         stage.act()
         stage.draw()
     }
