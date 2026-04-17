@@ -66,13 +66,23 @@ class TacticalUnit(val sourceUnit: MapUnit) : ICombatant {
 
     /**
      * Advances this unit's state machine by [delta] seconds.
-     * [enemies] is the list of opposing TacticalUnits.
+     * [enemies] is the list of opposing TacticalUnits; [allies] is the same-side list.
      * Player commands ([commandedDestination], [commandedTarget]) take priority over AI logic.
+     *
+     * Movement model:
+     * - Melee: advance straight toward target, blended with a separation force that steers
+     *   around nearby units — naturally finds the shortest unblocked path in open space.
+     * - Ranged: hold position once target is within attack range; back away if target closes
+     *   inside [RANGED_MIN_DIST_FACTOR] * attackRangePixels.
+     * - All units: separation repulsion from any unit within [SEP_RADIUS] prevents stacking.
      */
-    fun update(delta: Float, enemies: List<TacticalUnit>) {
+    fun update(delta: Float, enemies: List<TacticalUnit>, allies: List<TacticalUnit>) {
         if (state == TacticalUnitState.DEAD || state == TacticalUnitState.ESCAPED) return
 
         cooldownRemaining = (cooldownRemaining - delta).coerceAtLeast(0f)
+
+        wasHitThisFrame = false
+        wasAttackingThisFrame = false
 
         // Clear stale commanded target
         if (commandedTarget?.state == TacticalUnitState.DEAD ||
@@ -80,7 +90,7 @@ class TacticalUnit(val sourceUnit: MapUnit) : ICombatant {
             commandedTarget = null
         }
 
-        // Player move command: go to destination, ignoring enemies
+        // Player move command: go to destination with separation, ignoring enemies
         val dest = commandedDestination
         if (dest != null) {
             val distToDest = worldPos.dst(dest)
@@ -89,7 +99,9 @@ class TacticalUnit(val sourceUnit: MapUnit) : ICombatant {
             } else {
                 state = TacticalUnitState.MOVING
                 val dir = dest.cpy().sub(worldPos).nor()
-                worldPos.add(dir.scl(moveSpeed * delta))
+                val sep = separationForce(allies + enemies)
+                val finalDir = dir.add(sep.scl(SEP_WEIGHT)).nor()
+                worldPos.add(finalDir.scl(moveSpeed * delta))
                 return
             }
         }
@@ -111,7 +123,9 @@ class TacticalUnit(val sourceUnit: MapUnit) : ICombatant {
             } ?: return
 
         val dist = worldPos.dst(target.worldPos)
+
         if (dist <= attackRangePixels) {
+            // Attack if ready
             state = TacticalUnitState.ATTACKING
             if (cooldownRemaining <= 0f) {
                 val damage = BattleDamage.calculateDamageToDefender(
@@ -122,11 +136,46 @@ class TacticalUnit(val sourceUnit: MapUnit) : ICombatant {
                 lastAttackTargetWorldPos = target.worldPos.cpy()
                 cooldownRemaining = attackCooldownSeconds
             }
+
+            // Ranged: back away if enemy is too close; melee: hold position
+            if (isRangedUnit && dist < attackRangePixels * RANGED_MIN_DIST_FACTOR) {
+                state = TacticalUnitState.MOVING
+                val awayDir = worldPos.cpy().sub(target.worldPos).nor()
+                val sep = separationForce(allies + enemies)
+                val finalDir = awayDir.add(sep.scl(SEP_WEIGHT)).nor()
+                worldPos.add(finalDir.scl(moveSpeed * delta))
+            } else {
+                // Apply only separation while standing still so units don't stack
+                val sep = separationForce(allies + enemies)
+                if (sep.len() > 0.1f) worldPos.add(sep.nor().scl(moveSpeed * delta * SEP_IDLE_WEIGHT))
+            }
         } else {
+            // Advance toward target; ranged units stop at attack range
             state = TacticalUnitState.MOVING
-            val dir = target.worldPos.cpy().sub(worldPos).nor()
-            worldPos.add(dir.scl(moveSpeed * delta))
+            if (!isRangedUnit || dist > attackRangePixels) {
+                val toTarget = target.worldPos.cpy().sub(worldPos).nor()
+                val sep = separationForce(allies + enemies)
+                val finalDir = toTarget.add(sep.scl(SEP_WEIGHT)).nor()
+                worldPos.add(finalDir.scl(moveSpeed * delta))
+            }
         }
+    }
+
+    /**
+     * Returns a repulsion vector pushing this unit away from all nearby units within [SEP_RADIUS].
+     * Magnitude scales linearly with overlap — zero at [SEP_RADIUS], max at zero distance.
+     */
+    private fun separationForce(others: List<TacticalUnit>): Vector2 {
+        val force = Vector2()
+        for (other in others) {
+            if (other === this || other.state == TacticalUnitState.DEAD) continue
+            val diff = worldPos.cpy().sub(other.worldPos)
+            val dist = diff.len()
+            if (dist < SEP_RADIUS && dist > 0.1f) {
+                force.add(diff.nor().scl((SEP_RADIUS - dist) / SEP_RADIUS))
+            }
+        }
+        return force
     }
 
     // --- ICombatant implementation ---
@@ -179,5 +228,17 @@ class TacticalUnit(val sourceUnit: MapUnit) : ICombatant {
 
         const val MELEE_COOLDOWN = 8f
         const val RANGED_COOLDOWN = 10f
+
+        /** Pixel radius within which units repel each other */
+        const val SEP_RADIUS = HEX_SIZE * 1.8f
+
+        /** How strongly separation overrides the primary move direction */
+        const val SEP_WEIGHT = 1.2f
+
+        /** Separation weight applied when standing still (attacking/idle) — gentler drift */
+        const val SEP_IDLE_WEIGHT = 0.25f
+
+        /** Ranged units back away when target is closer than this fraction of their attack range */
+        const val RANGED_MIN_DIST_FACTOR = 0.55f
     }
 }

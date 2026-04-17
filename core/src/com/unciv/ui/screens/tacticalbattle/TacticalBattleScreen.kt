@@ -21,6 +21,7 @@ import com.unciv.models.UncivSound
 import com.unciv.ui.components.extensions.toLabel
 import com.unciv.ui.components.input.keyShortcuts
 import com.unciv.ui.components.input.onClick
+import com.unciv.ui.audio.SoundPlayer
 import com.unciv.ui.screens.basescreen.BaseScreen
 
 /**
@@ -31,12 +32,14 @@ class TacticalBattleScreen(private val context: TacticalBattleContext) : BaseScr
 
     private val result = TacticalBattleResult(context)
     private val spriteSize = com.unciv.ui.components.tilegroups.TileGroupMap.groupSize * 1.5f
+    private val VICTORY_DELAY = 0.8f
     private val healthLabels = mutableMapOf<TacticalUnit, Label>()
     private val resultLabel = "".toLabel(Color.GOLD, 24).apply { setAlignment(Align.center) }
     private val unitActors = mutableMapOf<TacticalUnit, TacticalUnitActor>()
     private val mapHolder = TacticalMapHolder(context)
     private var battleOver = false
     private var battleStarted = false
+    private var victoryDelayTimer = -1f  // counts down after all enemies/player units die
     private var speedMultiplier = 0f  // starts paused
     private var selectedUnit: TacticalUnit? = null
     private var startButton: Label? = null
@@ -178,20 +181,22 @@ class TacticalBattleScreen(private val context: TacticalBattleContext) : BaseScr
         if (battleOver || speedMultiplier == 0f) return
         val cappedDelta = (delta * speedMultiplier).coerceAtMost(1f / 20f)
 
-        for (unit in context.playerUnits) unit.update(cappedDelta, context.enemyUnits)
-        for (unit in context.enemyUnits) unit.update(cappedDelta, context.playerUnits)
+        for (unit in context.playerUnits) unit.update(cappedDelta, context.enemyUnits, context.playerUnits)
+        for (unit in context.enemyUnits) unit.update(cappedDelta, context.playerUnits, context.enemyUnits)
 
-        // Spawn visual effects before updateFromUnit resets the flags
+        // Spawn visual effects from flags set during update()
         for (unit in context.allUnits) {
             if (unit.wasHitThisFrame) {
                 mapHolder.unitLayer.addActor(FloatingTextActor(unit.lastDamageTaken, unit.worldPos.x, unit.worldPos.y + 40f))
                 if (unit.state == TacticalUnitState.DEAD)
                     mapHolder.unitLayer.addActor(DeathEffectActor(unit.worldPos.x, unit.worldPos.y, spriteSize * 1.2f))
             }
-            if (unit.wasAttackingThisFrame)
+            if (unit.wasAttackingThisFrame) {
+                SoundPlayer.play(unit.getAttackSound())
                 unit.lastAttackTargetWorldPos?.let { target ->
                     mapHolder.unitLayer.addActor(AttackLineActor(unit.worldPos.x, unit.worldPos.y, target.x, target.y))
                 }
+            }
         }
 
         for ((unit, actor) in unitActors) {
@@ -203,9 +208,23 @@ class TacticalBattleScreen(private val context: TacticalBattleContext) : BaseScr
             label.setText("${unit.getName()} $state")
         }
 
-        when {
-            result.playerWon -> { resultLabel.setText("Victory!"); resultLabel.color = Color.GOLD; battleOver = true }
-            result.enemyWon -> { resultLabel.setText("Defeat!"); resultLabel.color = Color.RED; battleOver = true }
+        // Start delay on first frame all enemies/player units are wiped out
+        if (victoryDelayTimer < 0f && !battleOver) {
+            when {
+                result.playerWon -> victoryDelayTimer = VICTORY_DELAY
+                result.enemyWon  -> victoryDelayTimer = VICTORY_DELAY
+            }
+        }
+        // Count down with real delta (unaffected by speed multiplier) so the pause feels consistent
+        if (victoryDelayTimer >= 0f) {
+            victoryDelayTimer -= delta
+            if (victoryDelayTimer <= 0f) {
+                when {
+                    result.playerWon -> { resultLabel.setText("Victory!"); resultLabel.color = Color.GOLD }
+                    result.enemyWon  -> { resultLabel.setText("Defeat!");  resultLabel.color = Color.RED  }
+                }
+                battleOver = true
+            }
         }
     }
 
