@@ -85,7 +85,6 @@ class TacticalUnitActor(
     private val barHeight = 4f
     private val barWidth = spriteSize * 0.9f
 
-    private var lastWorldX = Float.NaN
     private var facingRight = !tacticalUnit.isPlayerControlled  // enemies face left initially
 
     var isSelected = false
@@ -137,7 +136,7 @@ class TacticalUnitActor(
         }
         sprite.setPosition(0f, barHeight + 2f)
         sprite.originX = spriteSize / 2f
-        if (!facingRight) sprite.scaleX = -1f
+        if (facingRight) sprite.scaleX = -1f  // sprites default to facing left; flip to face right
         addActor(sprite)
 
         // Red circle that flashes on hit
@@ -187,13 +186,17 @@ class TacticalUnitActor(
 
     /** Sync health bar, hit flash, cooldown clock, opacity, and facing direction with current unit state. */
     fun updateFromUnit(delta: Float) {
-        val currentX = tacticalUnit.worldPos.x
-        if (!lastWorldX.isNaN()) {
-            val dx = currentX - lastWorldX
-            if (dx > 1f) { facingRight = true; sprite.scaleX = 1f }
-            else if (dx < -1f) { facingRight = false; sprite.scaleX = -1f }
+        // Face toward commanded destination, commanded target, or current AI target
+        val targetX = tacticalUnit.commandedDestination?.x
+            ?: tacticalUnit.commandedTarget?.worldPos?.x
+            ?: tacticalUnit.currentTarget?.worldPos?.x
+        if (targetX != null) {
+            val newFacingRight = targetX >= tacticalUnit.worldPos.x
+            if (newFacingRight != facingRight) {
+                facingRight = newFacingRight
+                sprite.scaleX = if (facingRight) -1f else 1f  // sprites default left; -1 = facing right
+            }
         }
-        lastWorldX = currentX
 
         // Hit flash: red circle on the defender
         if (tacticalUnit.wasHitThisFrame) {

@@ -15,6 +15,8 @@ import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener
 import com.badlogic.gdx.utils.Align
 import com.unciv.logic.battle.tactical.TacticalBattleContext
 import com.unciv.logic.battle.tactical.TacticalBattleResult
+import com.unciv.logic.battle.tactical.TacticalCity
+import com.unciv.logic.battle.tactical.TacticalCityState
 import com.unciv.logic.battle.tactical.TacticalUnit
 import com.unciv.logic.battle.tactical.TacticalUnitState
 import com.unciv.models.UncivSound
@@ -37,8 +39,10 @@ class TacticalBattleScreen(
     private val spriteSize = com.unciv.ui.components.tilegroups.TileGroupMap.groupSize * 1.5f
     private val VICTORY_DELAY = 0.8f
     private val healthLabels = mutableMapOf<TacticalUnit, Label>()
+    private val cityHealthLabels = mutableMapOf<TacticalCity, Label>()
     private val resultLabel = "".toLabel(Color.GOLD, 24).apply { setAlignment(Align.center) }
     private val unitActors = mutableMapOf<TacticalUnit, TacticalUnitActor>()
+    private val cityActors = mutableMapOf<TacticalCity, TacticalCityActor>()
     private val mapHolder = TacticalMapHolder(context)
     private var battleOver = false
     private var battleStarted = false
@@ -82,6 +86,14 @@ class TacticalBattleScreen(
             unitActors[unit] = actor
             mapHolder.unitLayer.addActor(actor)
             actor.centerOn(unit.worldPos.x, unit.worldPos.y)
+        }
+
+        // Create city actors for enemy cities in range
+        for (city in context.enemyCities) {
+            val actor = TacticalCityActor(city)
+            cityActors[city] = actor
+            mapHolder.unitLayer.addActor(actor)
+            actor.centerOn(city.worldPos.x, city.worldPos.y)
         }
 
         // Background click on the map: move selected unit to that position
@@ -163,6 +175,11 @@ class TacticalBattleScreen(
             healthLabels[unit] = lbl
             enemyCol.add(lbl).left().row()
         }
+        for (city in context.enemyCities) {
+            val lbl = "${city.getName()} HP:${city.currentHealth}".toLabel(Color.ORANGE, 11)
+            cityHealthLabels[city] = lbl
+            enemyCol.add(lbl).left().row()
+        }
         bottomPanel.add(playerCol).padRight(20f).top()
         bottomPanel.add(enemyCol).top().row()
 
@@ -184,8 +201,9 @@ class TacticalBattleScreen(
         if (battleOver || speedMultiplier == 0f) return
         val cappedDelta = (delta * speedMultiplier).coerceAtMost(1f / 20f)
 
-        for (unit in context.playerUnits) unit.update(cappedDelta, context.enemyUnits, context.playerUnits)
+        for (unit in context.playerUnits) unit.update(cappedDelta, context.enemyUnits, context.playerUnits, context.enemyCities)
         for (unit in context.enemyUnits) unit.update(cappedDelta, context.playerUnits, context.enemyUnits)
+        for (city in context.enemyCities) city.update(cappedDelta, context.playerUnits)
 
         // Spawn visual effects from flags set during update()
         for (unit in context.allUnits) {
@@ -201,14 +219,35 @@ class TacticalBattleScreen(
                 }
             }
         }
+        for (city in context.enemyCities) {
+            if (city.wasHitThisFrame) {
+                mapHolder.unitLayer.addActor(FloatingTextActor(city.lastDamageTaken, city.worldPos.x, city.worldPos.y + 40f))
+            }
+            if (city.wasAttackingThisFrame) {
+                SoundPlayer.play(city.getAttackSound())
+                city.lastAttackTargetWorldPos?.let { target ->
+                    mapHolder.unitLayer.addActor(AttackLineActor(city.worldPos.x, city.worldPos.y, target.x, target.y))
+                }
+            }
+        }
 
         for ((unit, actor) in unitActors) {
             actor.centerOn(unit.worldPos.x, unit.worldPos.y)
             actor.updateFromUnit(cappedDelta)
+            // Keep currentTile in sync with world position so terrain modifiers apply correctly
+            context.tiles.minByOrNull { TacticalBattleContext.tileToWorldPos(it).dst(unit.worldPos) }
+                ?.let { unit.currentTile = it }
+        }
+        for ((city, actor) in cityActors) {
+            actor.updateFromCity(cappedDelta)
         }
         for ((unit, label) in healthLabels) {
             val state = if (unit.state == TacticalUnitState.DEAD) "DEAD" else "HP:${unit.currentHealth}"
             label.setText("${unit.getName()} $state")
+        }
+        for ((city, label) in cityHealthLabels) {
+            val state = if (city.state == TacticalCityState.CAPTURED) "CAPTURED" else "HP:${city.currentHealth}"
+            label.setText("${city.getName()} $state")
         }
 
         // Start delay on first frame all enemies/player units are wiped out

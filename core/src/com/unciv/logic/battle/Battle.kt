@@ -656,7 +656,7 @@ object Battle {
             attacker.unit.action = null // but not, for instance, if it's Set Up - then it should definitely keep the action!
     }
 
-    private fun conquerCity(city: City, attacker: MapUnitCombatant) {
+    internal fun conquerCity(city: City, attacker: MapUnitCombatant) {
         val attackerCiv = attacker.getCivInfo()
 
         attackerCiv.addNotification("We have conquered the city of [${city.name}]!", city.location, NotificationCategory.War, NotificationIcon.War)

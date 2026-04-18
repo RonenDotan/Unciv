@@ -322,15 +322,23 @@ class BattleTable(val worldScreen: WorldScreen) : Table() {
         if (!SoundPlayer.play(UncivSound(attacker.getName())))
             SoundPlayer.play(attacker.getAttackSound())
 
-        // Launch tactical battle screen when feature is enabled and both sides are map units (not nukes/cities)
+        // Launch tactical battle screen when feature is enabled (unit vs unit or unit vs city)
         if (worldScreen.game.settings.useTacticalBattles
-            && attacker is MapUnitCombatant && defender is MapUnitCombatant
+            && attacker is MapUnitCombatant
             && !attacker.unit.isNuclearWeapon()
             && !worldScreen.autoPlay.isAutoPlaying()) {
-            val context = TacticalBattleContext.buildFrom(attacker.unit, defender.unit)
-            worldScreen.game.pushScreen(TacticalBattleScreen(context))
-            hide()
-            return
+            val context = when {
+                defender is MapUnitCombatant ->
+                    TacticalBattleContext.buildFrom(attacker.unit, defender.unit)
+                defender is CityCombatant ->
+                    TacticalBattleContext.buildFrom(attacker.unit, defender.city)
+                else -> null
+            }
+            if (context != null) {
+                worldScreen.game.pushScreen(TacticalBattleScreen(context))
+                hide()
+                return
+            }
         }
 
         val (damageToDefender, damageToAttacker) = Battle.attackOrNuke(attacker, attackableTile)

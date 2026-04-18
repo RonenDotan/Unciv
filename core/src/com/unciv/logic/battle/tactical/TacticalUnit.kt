@@ -2,6 +2,7 @@ package com.unciv.logic.battle.tactical
 
 import com.badlogic.gdx.math.Vector2
 import com.unciv.logic.battle.BattleDamage
+import com.unciv.logic.battle.CityCombatant
 import com.unciv.logic.battle.ICombatant
 import com.unciv.logic.battle.MapUnitCombatant
 import com.unciv.logic.civilization.Civilization
@@ -18,13 +19,13 @@ enum class TacticalUnitState { IDLE, MOVING, ATTACKING, DEAD, ESCAPED }
  * Holds a mutable snapshot of the unit's state during the battle.
  * The original [sourceUnit] is NOT modified until [TacticalBattleResult] is applied.
  */
-class TacticalUnit(val sourceUnit: MapUnit) : ICombatant {
+class TacticalUnit(val sourceUnit: MapUnit) : ICombatant, TacticalCombatant {
 
     // --- Position and state ---
-    var worldPos: Vector2 = Vector2.Zero.cpy()
+    override var worldPos: Vector2 = Vector2.Zero.cpy()
     var currentTile: Tile = sourceUnit.getTile()
     var state: TacticalUnitState = TacticalUnitState.IDLE
-    var currentTarget: TacticalUnit? = null
+    var currentTarget: TacticalCombatant? = null  // TacticalUnit or TacticalCity
 
     // --- Health (independent from sourceUnit.health during battle) ---
     var currentHealth: Int = sourceUnit.health
@@ -59,7 +60,7 @@ class TacticalUnit(val sourceUnit: MapUnit) : ICombatant {
     var commandedDestination: Vector2? = null
 
     /** Player-commanded attack target. Overrides AI target selection when set. */
-    var commandedTarget: TacticalUnit? = null
+    var commandedTarget: TacticalCombatant? = null  // TacticalUnit or TacticalCity
 
     val isPlayerControlled: Boolean
         get() = sourceUnit.civ.isHuman()
@@ -67,6 +68,7 @@ class TacticalUnit(val sourceUnit: MapUnit) : ICombatant {
     /**
      * Advances this unit's state machine by [delta] seconds.
      * [enemies] is the list of opposing TacticalUnits; [allies] is the same-side list.
+     * [enemyCities] are enemy TacticalCities that can also be targeted.
      * Player commands ([commandedDestination], [commandedTarget]) take priority over AI logic.
      *
      * Movement model:
@@ -76,7 +78,7 @@ class TacticalUnit(val sourceUnit: MapUnit) : ICombatant {
      *   inside [RANGED_MIN_DIST_FACTOR] * attackRangePixels.
      * - All units: separation repulsion from any unit within [SEP_RADIUS] prevents stacking.
      */
-    fun update(delta: Float, enemies: List<TacticalUnit>, allies: List<TacticalUnit>) {
+    fun update(delta: Float, enemies: List<TacticalUnit>, allies: List<TacticalUnit>, enemyCities: List<TacticalCity> = emptyList()) {
         if (state == TacticalUnitState.DEAD || state == TacticalUnitState.ESCAPED) return
 
         cooldownRemaining = (cooldownRemaining - delta).coerceAtLeast(0f)
@@ -85,10 +87,7 @@ class TacticalUnit(val sourceUnit: MapUnit) : ICombatant {
         wasAttackingThisFrame = false
 
         // Clear stale commanded target
-        if (commandedTarget?.state == TacticalUnitState.DEAD ||
-            commandedTarget?.state == TacticalUnitState.ESCAPED) {
-            commandedTarget = null
-        }
+        if (commandedTarget?.isAliveForBattle() == false) commandedTarget = null
 
         // Player move command: go to destination with separation, ignoring enemies
         val dest = commandedDestination
@@ -106,18 +105,17 @@ class TacticalUnit(val sourceUnit: MapUnit) : ICombatant {
             }
         }
 
-        // Determine target: player command > AI nearest-enemy
-        val aliveEnemies = enemies.filter {
-            it.state != TacticalUnitState.DEAD && it.state != TacticalUnitState.ESCAPED
-        }
-        if (aliveEnemies.isEmpty()) { state = TacticalUnitState.IDLE; return }
+        // Combine alive enemy units and cities into a single target list
+        val aliveEnemyUnits = enemies.filter { it.state != TacticalUnitState.DEAD && it.state != TacticalUnitState.ESCAPED }
+        val aliveEnemyCities = enemyCities.filter { it.isAliveForBattle() }
+        val aliveTargets: List<TacticalCombatant> = aliveEnemyUnits + aliveEnemyCities
+        if (aliveTargets.isEmpty()) { state = TacticalUnitState.IDLE; return }
 
-        val target = commandedTarget
+        // Determine target: player command > AI nearest-enemy (unit or city)
+        val target: TacticalCombatant = commandedTarget
             ?: run {
-                if (currentTarget == null ||
-                    currentTarget!!.state == TacticalUnitState.DEAD ||
-                    currentTarget!!.state == TacticalUnitState.ESCAPED) {
-                    currentTarget = aliveEnemies.minByOrNull { it.worldPos.dst(worldPos) }
+                if (currentTarget == null || currentTarget?.isAliveForBattle() == false) {
+                    currentTarget = aliveTargets.minByOrNull { it.worldPos.dst(worldPos) }
                 }
                 currentTarget
             } ?: return
@@ -128,10 +126,15 @@ class TacticalUnit(val sourceUnit: MapUnit) : ICombatant {
             // Attack if ready
             state = TacticalUnitState.ATTACKING
             if (cooldownRemaining <= 0f) {
-                val damage = BattleDamage.calculateDamageToDefender(
-                    this, target, currentTile, randomnessFactor = 0.5f
-                ).coerceAtLeast(1)
-                target.takeDamage(damage)
+                val damage = when (target) {
+                    is TacticalUnit -> BattleDamage.calculateDamageToDefender(this, target, currentTile, randomnessFactor = 0.5f).coerceAtLeast(1)
+                    is TacticalCity -> BattleDamage.calculateDamageToDefender(MapUnitCombatant(sourceUnit), CityCombatant(target.sourceCity), currentTile, randomnessFactor = 0.5f).coerceAtLeast(1)
+                    else -> 1
+                }
+                when (target) {
+                    is TacticalUnit -> target.takeDamage(damage)
+                    is TacticalCity -> target.takeDamage(damage, this)
+                }
                 wasAttackingThisFrame = true
                 lastAttackTargetWorldPos = target.worldPos.cpy()
                 cooldownRemaining = attackCooldownSeconds
@@ -182,6 +185,7 @@ class TacticalUnit(val sourceUnit: MapUnit) : ICombatant {
     // Delegates strength/type queries to the source unit so BattleDamage math works correctly.
     // takeDamage() affects only this TacticalUnit's health, NOT the source MapUnit.
 
+    override fun isAliveForBattle(): Boolean = state != TacticalUnitState.DEAD && state != TacticalUnitState.ESCAPED
     override fun getName(): String = sourceUnit.name
     override fun getHealth(): Int = currentHealth
     override fun getMaxHealth(): Int = 100

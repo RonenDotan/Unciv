@@ -1,5 +1,7 @@
 package com.unciv.logic.battle.tactical
 
+import com.unciv.logic.battle.Battle
+import com.unciv.logic.battle.MapUnitCombatant
 import com.unciv.logic.map.tile.Tile
 
 /**
@@ -12,8 +14,12 @@ class TacticalBattleResult(private val context: TacticalBattleContext) {
     val enemyUnits  get() = context.enemyUnits
     val allUnits    get() = context.allUnits
 
+    /** Player wins if the primary target is captured, or (if unit battle) all enemies are wiped. */
     val playerWon: Boolean
-        get() = enemyUnits.all { it.state == TacticalUnitState.DEAD || it.state == TacticalUnitState.ESCAPED }
+        get() = if (context.primaryTargetIsCity)
+            context.enemyCities.any { it.state == TacticalCityState.CAPTURED }
+        else
+            enemyUnits.all { it.state == TacticalUnitState.DEAD || it.state == TacticalUnitState.ESCAPED }
 
     val enemyWon: Boolean
         get() = playerUnits.all { it.state == TacticalUnitState.DEAD || it.state == TacticalUnitState.ESCAPED }
@@ -60,6 +66,18 @@ class TacticalBattleResult(private val context: TacticalBattleContext) {
 
         for (tacticalUnit in dead) {
             tacticalUnit.sourceUnit.destroy()
+        }
+
+        // Apply city outcomes
+        for (city in context.enemyCities) {
+            if (city.state == TacticalCityState.CAPTURED) {
+                val killer = city.killedBy
+                if (killer != null && killer.state != TacticalUnitState.DEAD) {
+                    Battle.conquerCity(city.sourceCity, MapUnitCombatant(killer.sourceUnit))
+                }
+            } else {
+                city.sourceCity.health = city.currentHealth.coerceAtLeast(1)
+            }
         }
     }
 }
