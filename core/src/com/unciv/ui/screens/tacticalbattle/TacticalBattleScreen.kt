@@ -28,7 +28,10 @@ import com.unciv.ui.screens.basescreen.BaseScreen
  * Full-screen tactical battle screen with real-time hex map, moving unit sprites,
  * and player input (click to select, click to move/attack, speed controls).
  */
-class TacticalBattleScreen(private val context: TacticalBattleContext) : BaseScreen() {
+class TacticalBattleScreen(
+    private val context: TacticalBattleContext,
+    private val onDismiss: (() -> Unit)? = null
+) : BaseScreen() {
 
     private val result = TacticalBattleResult(context)
     private val spriteSize = com.unciv.ui.components.tilegroups.TileGroupMap.groupSize * 1.5f
@@ -288,5 +291,6 @@ class TacticalBattleScreen(private val context: TacticalBattleContext) : BaseScr
         }
         result.applyToGame()
         game.popScreen()
+        onDismiss?.invoke()
     }
 }

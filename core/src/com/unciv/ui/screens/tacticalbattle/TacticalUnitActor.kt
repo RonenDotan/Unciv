@@ -79,10 +79,14 @@ class TacticalUnitActor(
     private val hitFlashOverlay: Image
     private val attackFlashOverlay: Image
     private val cooldownIndicator: CooldownIndicator
+    private lateinit var sprite: Group
 
     private val spriteSize = TileGroupMap.groupSize * 1.5f  // 75f
     private val barHeight = 4f
     private val barWidth = spriteSize * 0.9f
+
+    private var lastWorldX = Float.NaN
+    private var facingRight = !tacticalUnit.isPlayerControlled  // enemies face left initially
 
     var isSelected = false
         set(value) {
@@ -112,7 +116,7 @@ class TacticalUnitActor(
         val nation = tacticalUnit.sourceUnit.civ.nation
         val imageLocation = tileSetStrings.getUnitImageLocation(tacticalUnit.sourceUnit)
 
-        val sprite: Group = if (imageLocation.isNotEmpty() && ImageGetter.imageExists(imageLocation)) {
+        sprite = if (imageLocation.isNotEmpty() && ImageGetter.imageExists(imageLocation)) {
             val layers = ImageGetter.getLayeredImageColored(
                 imageLocation, null,
                 nation.getInnerColor(),
@@ -132,6 +136,8 @@ class TacticalUnitActor(
             }
         }
         sprite.setPosition(0f, barHeight + 2f)
+        sprite.originX = spriteSize / 2f
+        if (!facingRight) sprite.scaleX = -1f
         addActor(sprite)
 
         // Red circle that flashes on hit
@@ -179,8 +185,16 @@ class TacticalUnitActor(
         })
     }
 
-    /** Sync health bar, hit flash, cooldown clock, and opacity with current unit state. */
+    /** Sync health bar, hit flash, cooldown clock, opacity, and facing direction with current unit state. */
     fun updateFromUnit(delta: Float) {
+        val currentX = tacticalUnit.worldPos.x
+        if (!lastWorldX.isNaN()) {
+            val dx = currentX - lastWorldX
+            if (dx > 1f) { facingRight = true; sprite.scaleX = 1f }
+            else if (dx < -1f) { facingRight = false; sprite.scaleX = -1f }
+        }
+        lastWorldX = currentX
+
         // Hit flash: red circle on the defender
         if (tacticalUnit.wasHitThisFrame) {
             tacticalUnit.wasHitThisFrame = false

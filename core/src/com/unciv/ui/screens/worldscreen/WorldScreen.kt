@@ -66,6 +66,9 @@ import com.unciv.ui.screens.worldscreen.topbar.WorldScreenTopBar
 import com.unciv.ui.screens.worldscreen.unit.AutoPlay
 import com.unciv.ui.screens.worldscreen.unit.UnitTable
 import com.unciv.ui.screens.worldscreen.unit.actions.UnitActionsTable
+import com.unciv.logic.battle.tactical.TacticalBattleContext
+import com.unciv.logic.map.mapunit.MapUnit
+import com.unciv.ui.screens.tacticalbattle.TacticalBattleScreen
 import com.unciv.ui.screens.worldscreen.worldmap.WorldMapHolder
 import com.unciv.ui.screens.worldscreen.worldmap.WorldMapTileUpdater.updateTiles
 import com.unciv.utils.Concurrency
@@ -797,9 +800,29 @@ class WorldScreen(
             showTutorialsOnNextTurn()
             if (Gdx.input.inputProcessor == null) // Update may have replaced the worldscreen with a GreatPersonPickerScreen etc, so the input would already be set
                 Gdx.input.inputProcessor = stage
+
+            // Show any tactical battles deferred from the AI turn (AI attacked a human unit)
+            if (gameInfo.pendingTacticalBattles.isNotEmpty()) {
+                val pending = gameInfo.pendingTacticalBattles.toList()
+                gameInfo.pendingTacticalBattles.clear()
+                showPendingTacticalBattle(pending, 0)
+            }
         }
 
         super.render(delta)
+    }
+
+    private fun showPendingTacticalBattle(battles: List<Pair<MapUnit, MapUnit>>, index: Int) {
+        if (index >= battles.size) return
+        val (attackerUnit, defenderUnit) = battles[index]
+        if (attackerUnit.health <= 0 || defenderUnit.health <= 0) {
+            showPendingTacticalBattle(battles, index + 1)
+            return
+        }
+        val context = TacticalBattleContext.buildFrom(attackerUnit, defenderUnit)
+        game.pushScreen(TacticalBattleScreen(context) {
+            showPendingTacticalBattle(battles, index + 1)
+        })
     }
 
 

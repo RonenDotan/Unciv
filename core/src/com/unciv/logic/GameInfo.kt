@@ -176,6 +176,10 @@ class GameInfo : IsPartOfGameInfoSerialization, HasGameInfoSerializationVersion 
     @Transient
     var spaceResources = HashSet<String>()
 
+    /** Battles where an AI attacked a human unit, deferred for the player to resolve via TacticalBattleScreen. */
+    @Transient
+    val pendingTacticalBattles: MutableList<Pair<com.unciv.logic.map.mapunit.MapUnit, com.unciv.logic.map.mapunit.MapUnit>> = mutableListOf()
+
     //endregion
     //region Pure functions
 

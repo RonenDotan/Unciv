@@ -38,6 +38,19 @@ object Battle {
      */
     fun moveAndAttack(attacker: ICombatant, attackableTile: AttackableTile) {
         if (!movePreparingAttack(attacker, attackableTile, true)) return
+
+        // When tactical battles are on and AI attacks a human unit, defer instead of resolving instantly
+        if (UncivGame.Current.settings.useTacticalBattles
+            && attacker is MapUnitCombatant
+            && !attacker.unit.isNuclearWeapon()
+            && !attacker.unit.civ.isHuman()) {
+            val defender = getMapCombatantOfTile(attackableTile.tileToAttack)
+            if (defender is MapUnitCombatant && defender.unit.civ.isHuman()) {
+                attacker.unit.civ.gameInfo.pendingTacticalBattles.add(Pair(attacker.unit, defender.unit))
+                return
+            }
+        }
+
         attackOrNuke(attacker, attackableTile)
     }
 
