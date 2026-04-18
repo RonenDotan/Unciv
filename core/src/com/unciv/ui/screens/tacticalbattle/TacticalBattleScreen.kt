@@ -52,7 +52,9 @@ class TacticalBattleScreen(
     private var selectedUnit: TacticalUnit? = null
     private var startButton: Label? = null
     private var zoomSlider: Slider? = null
+    private var speedSlider: Slider? = null
     private var updatingSlider = false
+    private var updatingSpeedSlider = false
 
     init {
         val mapTable = Table()
@@ -75,6 +77,9 @@ class TacticalBattleScreen(
         btnTable.onClick(UncivSound.Silent) {
             battleStarted = true
             speedMultiplier = 1f
+            updatingSpeedSlider = true
+            speedSlider?.value = 1f
+            updatingSpeedSlider = false
             startOverlay.remove()
         }
         startOverlay.add(btnTable).pad(20f)
@@ -140,49 +145,52 @@ class TacticalBattleScreen(
         )
         bottomPanel.pad(8f)
 
-        // Zoom slider
-        val slider = Slider(mapHolder.minZoom, mapHolder.maxZoom, 0.1f, false, skin)
-        slider.value = mapHolder.scaleX
-        slider.addListener(object : ChangeListener() {
+        // Speed slider + Zoom slider on the same row
+        val spdSlider = Slider(0f, 3f, 0.1f, false, skin)
+        spdSlider.value = speedMultiplier
+        spdSlider.addListener(object : ChangeListener() {
             override fun changed(event: ChangeEvent, actor: com.badlogic.gdx.scenes.scene2d.Actor) {
-                if (!updatingSlider) mapHolder.zoom(slider.value)
+                if (!updatingSpeedSlider && battleStarted) speedMultiplier = spdSlider.value
             }
         })
-        zoomSlider = slider
-        val zoomRow = Table()
-        zoomRow.add("🔍".toLabel(Color.WHITE, 14)).padRight(6f)
-        zoomRow.add(slider).width(180f).height(24f)
-        bottomPanel.add(zoomRow).colspan(2).padBottom(4f).row()
+        speedSlider = spdSlider
 
-        // Speed buttons row
-        val speedRow = Table()
-        for ((label, speed) in listOf("⏸" to 0f, "▶" to 1f, "▶▶" to 2f)) {
-            val btn = label.toLabel(Color.WHITE, 18).apply { setAlignment(Align.center) }
-            btn.onClick(UncivSound.Silent) { if (battleStarted) speedMultiplier = speed }
-            speedRow.add(btn).width(50f).height(30f).padRight(8f)
-        }
-        bottomPanel.add(speedRow).colspan(2).padBottom(4f).row()
+        val zoomSliderWidget = Slider(mapHolder.minZoom, mapHolder.maxZoom, 0.1f, false, skin)
+        zoomSliderWidget.value = mapHolder.scaleX
+        zoomSliderWidget.addListener(object : ChangeListener() {
+            override fun changed(event: ChangeEvent, actor: com.badlogic.gdx.scenes.scene2d.Actor) {
+                if (!updatingSlider) mapHolder.zoom(zoomSliderWidget.value)
+            }
+        })
+        zoomSlider = zoomSliderWidget
+
+        val slidersRow = Table()
+        slidersRow.add("Spd".toLabel(Color.LIGHT_GRAY, 12)).padRight(4f)
+        slidersRow.add(spdSlider).width(150f).height(24f).padRight(20f)
+        slidersRow.add("Zoom".toLabel(Color.LIGHT_GRAY, 12)).padRight(4f)
+        slidersRow.add(zoomSliderWidget).width(150f).height(24f)
+        bottomPanel.add(slidersRow).colspan(2).padBottom(6f).row()
         bottomPanel.add(resultLabel).colspan(2).padBottom(4f).row()
 
         // Unit HP columns
         val playerCol = Table()
         val enemyCol = Table()
         for (unit in context.playerUnits) {
-            val lbl = "${unit.getName()} HP:${unit.currentHealth}".toLabel(Color.GREEN, 11)
+            val lbl = "${unit.getName()}  ${unit.currentHealth}hp".toLabel(Color.GREEN, 12)
             healthLabels[unit] = lbl
-            playerCol.add(lbl).left().row()
+            playerCol.add(lbl).left().padBottom(1f).row()
         }
         for (unit in context.enemyUnits) {
-            val lbl = "${unit.getName()} HP:${unit.currentHealth}".toLabel(Color.RED, 11)
+            val lbl = "${unit.getName()}  ${unit.currentHealth}hp".toLabel(Color.RED, 12)
             healthLabels[unit] = lbl
-            enemyCol.add(lbl).left().row()
+            enemyCol.add(lbl).left().padBottom(1f).row()
         }
         for (city in context.enemyCities) {
-            val lbl = "${city.getName()} HP:${city.currentHealth}".toLabel(Color.ORANGE, 11)
+            val lbl = "${city.getName()}  ${city.currentHealth}hp".toLabel(Color.ORANGE, 12)
             cityHealthLabels[city] = lbl
-            enemyCol.add(lbl).left().row()
+            enemyCol.add(lbl).left().padBottom(1f).row()
         }
-        bottomPanel.add(playerCol).padRight(20f).top()
+        bottomPanel.add(playerCol).padRight(24f).top()
         bottomPanel.add(enemyCol).top().row()
 
         val dismissButton = "End Battle".toLabel(Color.WHITE, 16).apply { setAlignment(Align.center) }
@@ -194,7 +202,14 @@ class TacticalBattleScreen(
 
         hud.keyShortcuts.add(Input.Keys.ESCAPE) { dismiss() }
         hud.keyShortcuts.add(Input.Keys.ENTER) { if (battleOver) dismiss() }
-        hud.keyShortcuts.add(Input.Keys.SPACE) { if (battleStarted) speedMultiplier = if (speedMultiplier == 0f) 1f else 0f }
+        hud.keyShortcuts.add(Input.Keys.SPACE) {
+            if (battleStarted) {
+                speedMultiplier = if (speedMultiplier == 0f) 1f else 0f
+                updatingSpeedSlider = true
+                speedSlider?.value = speedMultiplier
+                updatingSpeedSlider = false
+            }
+        }
 
         return hud
     }
@@ -244,12 +259,12 @@ class TacticalBattleScreen(
             actor.updateFromCity(cappedDelta)
         }
         for ((unit, label) in healthLabels) {
-            val state = if (unit.state == TacticalUnitState.DEAD) "DEAD" else "HP:${unit.currentHealth}"
-            label.setText("${unit.getName()} $state")
+            val state = if (unit.state == TacticalUnitState.DEAD) "dead" else "${unit.currentHealth}hp"
+            label.setText("${unit.getName()}  $state")
         }
         for ((city, label) in cityHealthLabels) {
-            val state = if (city.state == TacticalCityState.CAPTURED) "CAPTURED" else "HP:${city.currentHealth}"
-            label.setText("${city.getName()} $state")
+            val state = if (city.state == TacticalCityState.CAPTURED) "captured" else "${city.currentHealth}hp"
+            label.setText("${city.getName()}  $state")
         }
 
         // Start delay on first frame all enemies/player units are wiped out
