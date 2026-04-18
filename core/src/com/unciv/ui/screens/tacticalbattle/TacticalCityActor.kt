@@ -24,6 +24,7 @@ class TacticalCityActor(val tacticalCity: TacticalCity) : Group() {
     private val healthBarFg: Image
     private val hitFlashOverlay: Image
     private val capturedOverlay: Image
+    private val cooldownIndicator: CooldownIndicator
 
     private var hitFlashTimer = 0f
 
@@ -53,6 +54,13 @@ class TacticalCityActor(val tacticalCity: TacticalCity) : Group() {
             color.a = 0f
         }
         addActor(capturedOverlay)
+
+        // Cooldown clock above city icon
+        val clockSize = spriteSize * 0.45f
+        cooldownIndicator = CooldownIndicator(clockSize).apply {
+            setPosition(spriteSize / 2f - clockSize / 2f, barHeight + 2f + spriteSize + 4f)
+        }
+        addActor(cooldownIndicator)
 
         // Health bar
         healthBarBg = ImageGetter.getDot(Color.DARK_GRAY).apply {
@@ -84,6 +92,8 @@ class TacticalCityActor(val tacticalCity: TacticalCity) : Group() {
         }
 
         capturedOverlay.color.a = if (tacticalCity.state == TacticalCityState.CAPTURED) 0.6f else 0f
+
+        cooldownIndicator.fraction = (tacticalCity.cooldownRemaining / tacticalCity.attackCooldownSeconds).coerceIn(0f, 1f)
     }
 
     fun centerOn(worldX: Float, worldY: Float) {

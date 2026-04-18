@@ -45,8 +45,8 @@ class TacticalCity(val sourceCity: City) : TacticalCombatant {
         wasHitThisFrame = false
         cooldownRemaining = (cooldownRemaining - delta).coerceAtLeast(0f)
 
-        if (!sourceCity.canBombard()) return
-
+        // Use our own cooldown system instead of canBombard() — that checks attackedThisTurn
+        // which may already be true when the battle starts.
         val target = enemies
             .filter { it.state != TacticalUnitState.DEAD && it.state != TacticalUnitState.ESCAPED }
             .filter { worldPos.dst(it.worldPos) <= attackRangePixels }

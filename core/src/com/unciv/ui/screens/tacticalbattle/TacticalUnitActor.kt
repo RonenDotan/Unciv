@@ -26,7 +26,7 @@ private const val HIT_FLASH_DURATION = 0.3f
  * Draws a clock-style arc above the unit showing remaining attack cooldown.
  * Dark circle background, blue arc sweeps clockwise from full → empty as the cooldown counts down.
  */
-private class CooldownIndicator(private val clockSize: Float) : Actor() {
+internal class CooldownIndicator(private val clockSize: Float) : Actor() {
     /** 1.0 = just attacked (full wait), 0.0 = ready to attack (hidden) */
     var fraction = 0f
 
