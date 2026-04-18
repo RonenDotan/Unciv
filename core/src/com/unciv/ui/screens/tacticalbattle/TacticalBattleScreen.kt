@@ -21,6 +21,7 @@ import com.unciv.logic.battle.tactical.TacticalUnit
 import com.unciv.logic.battle.tactical.TacticalUnitState
 import com.unciv.models.UncivSound
 import com.unciv.ui.components.extensions.toLabel
+import com.unciv.models.translations.tr
 import com.unciv.ui.components.input.keyShortcuts
 import com.unciv.ui.components.input.onClick
 import com.unciv.ui.audio.SoundPlayer
@@ -259,12 +260,12 @@ class TacticalBattleScreen(
             actor.updateFromCity(cappedDelta)
         }
         for ((unit, label) in healthLabels) {
-            val state = if (unit.state == TacticalUnitState.DEAD) "dead" else "${unit.currentHealth}hp"
-            label.setText("${unit.getName()}  $state")
+            val state = if (unit.state == TacticalUnitState.DEAD) "dead".tr() else "${unit.currentHealth}${"hp".tr()}"
+            label.setText("${unit.getName().tr()}  $state")
         }
         for ((city, label) in cityHealthLabels) {
-            val state = if (city.state == TacticalCityState.CAPTURED) "captured" else "${city.currentHealth}hp"
-            label.setText("${city.getName()}  $state")
+            val state = if (city.state == TacticalCityState.CAPTURED) "captured".tr() else "${city.currentHealth}${"hp".tr()}"
+            label.setText("${city.getName().tr()}  $state")
         }
 
         // Start delay on first frame all enemies/player units are wiped out
@@ -279,8 +280,8 @@ class TacticalBattleScreen(
             victoryDelayTimer -= delta
             if (victoryDelayTimer <= 0f) {
                 when {
-                    result.playerWon -> { resultLabel.setText("Victory!"); resultLabel.color = Color.GOLD }
-                    result.enemyWon  -> { resultLabel.setText("Defeat!");  resultLabel.color = Color.RED  }
+                    result.playerWon -> { resultLabel.setText("Victory!".tr()); resultLabel.color = Color.GOLD }
+                    result.enemyWon  -> { resultLabel.setText("Defeat!".tr());  resultLabel.color = Color.RED  }
                 }
                 battleOver = true
             }
