@@ -88,8 +88,9 @@ class TacticalBattleScreen(
             actor.centerOn(unit.worldPos.x, unit.worldPos.y)
         }
 
-        // Create city actors for enemy cities in range
+        // Create city actors for enemy cities in range; sync worldPos to mapHolder coordinate space
         for (city in context.enemyCities) {
+            mapHolder.getWorldPos(city.currentTile)?.let { city.worldPos.set(it) }
             val actor = TacticalCityActor(city)
             cityActors[city] = actor
             mapHolder.unitLayer.addActor(actor)

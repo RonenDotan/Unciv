@@ -17,7 +17,7 @@ enum class TacticalCityState { ALIVE, CAPTURED }
  */
 class TacticalCity(val sourceCity: City) : TacticalCombatant {
 
-    override val worldPos: Vector2 = TacticalBattleContext.tileToWorldPos(sourceCity.getCenterTile())
+    override var worldPos: Vector2 = TacticalBattleContext.tileToWorldPos(sourceCity.getCenterTile())
     val currentTile = sourceCity.getCenterTile()
 
     var state: TacticalCityState = TacticalCityState.ALIVE
