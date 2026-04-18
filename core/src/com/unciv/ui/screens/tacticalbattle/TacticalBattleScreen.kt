@@ -38,6 +38,7 @@ class TacticalBattleScreen(
     private val result = TacticalBattleResult(context)
     private val spriteSize = com.unciv.ui.components.tilegroups.TileGroupMap.groupSize * 1.5f
     private val VICTORY_DELAY = 0.8f
+    private val DEPLOY_SCALE = 3.0f
     private val healthLabels = mutableMapOf<TacticalUnit, Label>()
     private val cityHealthLabels = mutableMapOf<TacticalCity, Label>()
     private val resultLabel = "".toLabel(Color.GOLD, 24).apply { setAlignment(Align.center) }
@@ -289,6 +290,19 @@ class TacticalBattleScreen(
             mapHolder.scrollPercentX = 0.5f
             mapHolder.scrollPercentY = 0.5f
             mapHolder.updateVisualScroll()
+
+            // Scale unit positions outward from battle center so sides start far apart.
+            // Preserves relative positions (flankers stay on flanks) while guaranteeing
+            // meaningful travel time before contact.
+            val battleCenter = mapHolder.getWorldPos(context.centerTile) ?: return@postRunnable
+            val maxDeployPx = (context.radius - 0.5f) * TacticalUnit.HEX_SIZE * TacticalUnit.SQRT3
+            for (unit in context.allUnits) {
+                val tilePos = mapHolder.getWorldPos(unit.currentTile) ?: continue
+                val offset = tilePos.cpy().sub(battleCenter).scl(DEPLOY_SCALE)
+                if (offset.len() > maxDeployPx) offset.setLength(maxDeployPx)
+                unit.worldPos.set(battleCenter.x + offset.x, battleCenter.y + offset.y)
+            }
+            for ((unit, actor) in unitActors) actor.centerOn(unit.worldPos.x, unit.worldPos.y)
         }
     }
 
