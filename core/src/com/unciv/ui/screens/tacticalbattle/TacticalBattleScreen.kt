@@ -46,6 +46,8 @@ class TacticalBattleScreen(
     private val unitActors = mutableMapOf<TacticalUnit, TacticalUnitActor>()
     private val cityActors = mutableMapOf<TacticalCity, TacticalCityActor>()
     private val mapHolder = TacticalMapHolder(context)
+    private var battleCenterWorldPos: Vector2? = null
+    private val escapeRadiusPx = (context.radius - 0.5f) * TacticalUnit.HEX_SIZE * TacticalUnit.SQRT3
     private var battleOver = false
     private var battleStarted = false
     private var victoryDelayTimer = -1f  // counts down after all enemies/player units die
@@ -219,6 +221,18 @@ class TacticalBattleScreen(
         if (battleOver || speedMultiplier == 0f) return
         val cappedDelta = (delta * speedMultiplier).coerceAtMost(1f / 20f)
 
+        // Check escape BEFORE update so AI doesn't pull units back on the same frame
+        val center = battleCenterWorldPos
+        if (center != null) {
+            for (unit in context.allUnits) {
+                if (unit.state == TacticalUnitState.DEAD || unit.state == TacticalUnitState.ESCAPED) continue
+                if (unit.worldPos.dst(center) > escapeRadiusPx) {
+                    unit.state = TacticalUnitState.ESCAPED
+                    mapHolder.unitLayer.addActor(FloatingTextActor(-1, unit.worldPos.x, unit.worldPos.y + 40f, "fled".tr()))
+                }
+            }
+        }
+
         for (unit in context.playerUnits) unit.update(cappedDelta, context.enemyUnits, context.playerUnits, context.enemyCities)
         for (unit in context.enemyUnits) unit.update(cappedDelta, context.playerUnits, context.enemyUnits)
         for (city in context.enemyCities) city.update(cappedDelta, context.playerUnits)
@@ -260,7 +274,11 @@ class TacticalBattleScreen(
             actor.updateFromCity(cappedDelta)
         }
         for ((unit, label) in healthLabels) {
-            val state = if (unit.state == TacticalUnitState.DEAD) "dead".tr() else "${unit.currentHealth}${"hp".tr()}"
+            val state = when (unit.state) {
+                TacticalUnitState.DEAD -> "dead".tr()
+                TacticalUnitState.ESCAPED -> "fled".tr()
+                else -> "${unit.currentHealth}${"hp".tr()}"
+            }
             label.setText("${unit.getName().tr()}  $state")
         }
         for ((city, label) in cityHealthLabels) {
@@ -311,6 +329,7 @@ class TacticalBattleScreen(
             // Preserves relative positions (flankers stay on flanks) while guaranteeing
             // meaningful travel time before contact.
             val battleCenter = mapHolder.getWorldPos(context.centerTile) ?: return@postRunnable
+            battleCenterWorldPos = battleCenter
             val maxDeployPx = (context.radius - 0.5f) * TacticalUnit.HEX_SIZE * TacticalUnit.SQRT3
             for (unit in context.allUnits) {
                 val tilePos = mapHolder.getWorldPos(unit.currentTile) ?: continue

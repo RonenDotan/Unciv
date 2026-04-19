@@ -44,13 +44,15 @@ class DeathEffectActor(centerX: Float, centerY: Float, size: Float) : Group() {
  * A damage number that rises and fades above a hit unit.
  * Add to unitLayer at the unit's worldPos.
  */
-class FloatingTextActor(damage: Int, startX: Float, startY: Float) : Group() {
+class FloatingTextActor(damage: Int, startX: Float, startY: Float, customText: String? = null) : Group() {
     private var elapsed = 0f
     private val duration = 1.2f
     private val riseSpeed = 30f
 
     init {
-        val label = "-$damage".toLabel(Color.RED, 16)
+        val text = customText ?: "-$damage"
+        val color = if (customText != null) Color.YELLOW else Color.RED
+        val label = text.toLabel(color, 16)
         addActor(label)
         setSize(label.prefWidth, label.prefHeight)
         setPosition(startX - label.prefWidth / 2f, startY)

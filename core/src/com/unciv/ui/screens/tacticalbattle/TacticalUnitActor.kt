@@ -219,7 +219,7 @@ class TacticalUnitActor(
             .coerceIn(0f, 1f)
 
         // Smooth fade to 25% alpha on death
-        val targetAlpha = if (tacticalUnit.state == TacticalUnitState.DEAD) 0f else 1f
+        val targetAlpha = if (tacticalUnit.state == TacticalUnitState.DEAD || tacticalUnit.state == TacticalUnitState.ESCAPED) 0f else 1f
         displayAlpha += (targetAlpha - displayAlpha) * (delta * 4f)
         color.a = displayAlpha
 
