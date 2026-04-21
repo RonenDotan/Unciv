@@ -78,7 +78,7 @@ class TacticalUnit(val sourceUnit: MapUnit) : ICombatant, TacticalCombatant {
      *   inside [RANGED_MIN_DIST_FACTOR] * attackRangePixels.
      * - All units: separation repulsion from any unit within [SEP_RADIUS] prevents stacking.
      */
-    fun update(delta: Float, enemies: List<TacticalUnit>, allies: List<TacticalUnit>, enemyCities: List<TacticalCity> = emptyList()) {
+    fun update(delta: Float, enemies: List<TacticalUnit>, allies: List<TacticalUnit>, enemyCities: List<TacticalCity> = emptyList(), aiConfig: TacticalAIConfig = TacticalAIConfig(), alliedCities: List<TacticalCity> = emptyList()) {
         if (state == TacticalUnitState.DEAD || state == TacticalUnitState.ESCAPED) return
 
         cooldownRemaining = (cooldownRemaining - delta).coerceAtLeast(0f)
@@ -111,14 +111,27 @@ class TacticalUnit(val sourceUnit: MapUnit) : ICombatant, TacticalCombatant {
         val aliveTargets: List<TacticalCombatant> = aliveEnemyUnits + aliveEnemyCities
         if (aliveTargets.isEmpty()) { state = TacticalUnitState.IDLE; return }
 
-        // Determine target: player command > AI nearest-enemy (unit or city)
+        // Determine target: player command > AI strategy > nearest-enemy fallback
         val target: TacticalCombatant = commandedTarget
             ?: run {
                 if (currentTarget == null || currentTarget?.isAliveForBattle() == false) {
-                    currentTarget = aliveTargets.minByOrNull { it.worldPos.dst(worldPos) }
+                    currentTarget = selectAITarget(aliveTargets, aiConfig, alliedCities)
                 }
                 currentTarget
             } ?: return
+
+        // Low HP retreat: flee from nearest enemy instead of engaging
+        if (aiConfig.retreat && commandedTarget == null && currentHealth <= RETREAT_HP_THRESHOLD) {
+            state = TacticalUnitState.MOVING
+            val nearestEnemy = aliveEnemyUnits.minByOrNull { worldPos.dst(it.worldPos) }
+            if (nearestEnemy != null) {
+                val awayDir = worldPos.cpy().sub(nearestEnemy.worldPos).nor()
+                val sep = separationForce(allies + enemies)
+                val finalDir = awayDir.add(sep.scl(SEP_WEIGHT)).nor()
+                worldPos.add(finalDir.scl(moveSpeed * delta))
+                return
+            }
+        }
 
         val dist = worldPos.dst(target.worldPos)
 
@@ -158,10 +171,63 @@ class TacticalUnit(val sourceUnit: MapUnit) : ICombatant, TacticalCombatant {
             if (!isRangedUnit || dist > attackRangePixels) {
                 val toTarget = target.worldPos.cpy().sub(worldPos).nor()
                 val sep = separationForce(allies + enemies)
-                val finalDir = toTarget.add(sep.scl(SEP_WEIGHT)).nor()
+                var finalDir = toTarget.add(sep.scl(SEP_WEIGHT)).nor()
+
+                // Ranged behind melee: if no melee ally is closer to the enemy, retreat instead
+                if (isRangedUnit && aiConfig.rangedBehindMelee) {
+                    val meleeAllies = allies.filter { !it.isRangedUnit && it.isAliveForBattle() }
+                    val anyMeleeInFront = meleeAllies.any { ally ->
+                        ally.worldPos.dst(target.worldPos) < worldPos.dst(target.worldPos)
+                    }
+                    if (!anyMeleeInFront && meleeAllies.isNotEmpty()) {
+                        val awayDir = worldPos.cpy().sub(target.worldPos).nor()
+                        finalDir = awayDir.add(separationForce(allies + enemies).scl(SEP_WEIGHT)).nor()
+                    }
+                }
+
                 worldPos.add(finalDir.scl(moveSpeed * delta))
             }
         }
+    }
+
+    /**
+     * Picks an AI target from [aliveTargets] according to [aiConfig].
+     * Focus fire: attack the weakest target within [FOCUS_FIRE_RANGE_FACTOR] * attackRangePixels;
+     * fall back to nearest if the weakest is too far away.
+     */
+    private fun selectAITarget(aliveTargets: List<TacticalCombatant>, aiConfig: TacticalAIConfig, alliedCities: List<TacticalCity> = emptyList()): TacticalCombatant? {
+        if (aiConfig.cityDefense && alliedCities.isNotEmpty()) {
+            // Target the enemy most threatening to any allied city:
+            // score = distance_to_nearest_city * CITY_WEIGHT + distance_to_self
+            return aliveTargets.minByOrNull { t ->
+                val distToCity = alliedCities.minOf { c -> t.worldPos.dst(c.worldPos) }
+                distToCity * CITY_DEFENSE_WEIGHT + worldPos.dst(t.worldPos)
+            }
+        }
+        if (aiConfig.targetPriority) {
+            // Target the strongest (highest attack strength) enemy
+            return aliveTargets.maxByOrNull {
+                when (it) {
+                    is TacticalUnit -> it.getAttackingStrength(this)
+                    is TacticalCity -> CityCombatant(it.sourceCity).getAttackingStrength(this)
+                    else -> 0
+                }
+            }
+        }
+        if (aiConfig.focusFire) {
+            val focusRange = attackRangePixels * FOCUS_FIRE_RANGE_FACTOR
+            val nearby = aliveTargets.filter { worldPos.dst(it.worldPos) <= focusRange }
+            if (nearby.isNotEmpty()) {
+                return nearby.minByOrNull {
+                    when (it) {
+                        is TacticalUnit -> it.currentHealth
+                        is TacticalCity -> it.currentHealth
+                        else -> Int.MAX_VALUE
+                    }
+                }
+            }
+        }
+        return aliveTargets.minByOrNull { worldPos.dst(it.worldPos) }
     }
 
     /**
@@ -233,6 +299,9 @@ class TacticalUnit(val sourceUnit: MapUnit) : ICombatant, TacticalCombatant {
         const val MELEE_COOLDOWN = 8f
         const val RANGED_COOLDOWN = 10f
 
+        /** HP threshold (out of 100) below which units retreat when aiConfig.retreat is enabled */
+        const val RETREAT_HP_THRESHOLD = 25
+
         /** Pixel radius within which units repel each other */
         const val SEP_RADIUS = HEX_SIZE * 1.8f
 
@@ -244,5 +313,11 @@ class TacticalUnit(val sourceUnit: MapUnit) : ICombatant, TacticalCombatant {
 
         /** Ranged units back away when target is closer than this fraction of their attack range */
         const val RANGED_MIN_DIST_FACTOR = 0.55f
+
+        /** Focus fire: only target the weakest enemy if it's within this many times the unit's attack range */
+        const val FOCUS_FIRE_RANGE_FACTOR = 3f
+
+        /** City defense: weight applied to distance-to-city in threat scoring (higher = defenders prioritize city more) */
+        const val CITY_DEFENSE_WEIGHT = 2f
     }
 }

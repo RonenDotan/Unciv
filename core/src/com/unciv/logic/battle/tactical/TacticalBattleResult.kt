@@ -34,10 +34,10 @@ class TacticalBattleResult(private val context: TacticalBattleContext) {
     fun applyToGame() {
         val usedTiles = mutableSetOf<Tile>()
 
-        val survivors = allUnits.filter { it.state != TacticalUnitState.DEAD && it.state != TacticalUnitState.ESCAPED }
+        val survivors = allUnits.filter { it.state != TacticalUnitState.DEAD }
         val dead      = allUnits.filter { it.state == TacticalUnitState.DEAD }
 
-        // Reposition survivors to the nearest available battle tile
+        // Reposition survivors (including escaped) to the nearest available battle tile
         for (tacticalUnit in survivors) {
             val unit = tacticalUnit.sourceUnit
             unit.health = tacticalUnit.currentHealth.coerceAtLeast(1)

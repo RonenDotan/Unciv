@@ -327,11 +327,19 @@ class BattleTable(val worldScreen: WorldScreen) : Table() {
             && attacker is MapUnitCombatant
             && !attacker.unit.isNuclearWeapon()
             && !worldScreen.autoPlay.isAutoPlaying()) {
+            val s = worldScreen.game.settings
+            val aiCfg = com.unciv.logic.battle.tactical.TacticalAIConfig(
+                focusFire = s.aiTacticFocusFire,
+                retreat = s.aiTacticRetreat,
+                rangedBehindMelee = s.aiTacticRangedBehindMelee,
+                targetPriority = s.aiTacticTargetPriority,
+                cityDefense = s.aiTacticCityDefense
+            )
             val context = when {
                 defender is MapUnitCombatant ->
-                    TacticalBattleContext.buildFrom(attacker.unit, defender.unit)
+                    TacticalBattleContext.buildFrom(attacker.unit, defender.unit, aiConfig = aiCfg)
                 defender is CityCombatant ->
-                    TacticalBattleContext.buildFrom(attacker.unit, defender.city)
+                    TacticalBattleContext.buildFrom(attacker.unit, defender.city, aiConfig = aiCfg)
                 else -> null
             }
             if (context != null) {

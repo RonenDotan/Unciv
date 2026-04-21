@@ -24,6 +24,8 @@ import com.unciv.ui.components.extensions.toLabel
 import com.unciv.models.translations.tr
 import com.unciv.ui.components.input.keyShortcuts
 import com.unciv.ui.components.input.onClick
+import com.unciv.ui.audio.MusicMood
+import com.unciv.ui.audio.MusicTrackChooserFlags
 import com.unciv.ui.audio.SoundPlayer
 import com.unciv.ui.screens.basescreen.BaseScreen
 
@@ -233,8 +235,9 @@ class TacticalBattleScreen(
             }
         }
 
+        val aiCfg = context.aiConfig
         for (unit in context.playerUnits) unit.update(cappedDelta, context.enemyUnits, context.playerUnits, context.enemyCities)
-        for (unit in context.enemyUnits) unit.update(cappedDelta, context.playerUnits, context.enemyUnits)
+        for (unit in context.enemyUnits) unit.update(cappedDelta, context.playerUnits, context.enemyUnits, aiConfig = aiCfg, alliedCities = context.enemyCities)
         for (city in context.enemyCities) city.update(cappedDelta, context.playerUnits)
 
         // Spawn visual effects from flags set during update()
@@ -309,6 +312,8 @@ class TacticalBattleScreen(
     override fun show() {
         super.show()
         Gdx.graphics.isContinuousRendering = true
+        val attackerCiv = context.playerUnits.firstOrNull()?.sourceUnit?.civ?.civName ?: ""
+        game.musicController.chooseTrack(attackerCiv, MusicMood.War, MusicTrackChooserFlags.setSelectNation)
         Gdx.app.postRunnable {
             stage.act(0f)  // force table layout so mapHolder gets its actual width/height
             val mapContent = mapHolder.actor ?: return@postRunnable

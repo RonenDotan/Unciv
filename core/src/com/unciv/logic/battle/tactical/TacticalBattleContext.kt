@@ -6,6 +6,15 @@ import com.unciv.logic.map.mapunit.MapUnit
 import com.unciv.logic.map.tile.Tile
 import com.unciv.logic.map.HexMath
 
+/** Flags controlling AI behaviour during a tactical battle. */
+data class TacticalAIConfig(
+    val focusFire: Boolean = false,
+    val retreat: Boolean = false,
+    val rangedBehindMelee: Boolean = false,
+    val targetPriority: Boolean = false,
+    val cityDefense: Boolean = false
+)
+
 /**
  * Describes the set-up for a tactical battle: which tiles are in scope,
  * which units participate, and who is on which side.
@@ -20,7 +29,8 @@ class TacticalBattleContext(
     val enemyUnits: List<TacticalUnit>,
     val enemyCities: List<TacticalCity> = emptyList(),
     /** True when the battle was initiated by a unit attacking a city directly. */
-    val primaryTargetIsCity: Boolean = false
+    val primaryTargetIsCity: Boolean = false,
+    val aiConfig: TacticalAIConfig = TacticalAIConfig()
 ) {
     val allUnits: List<TacticalUnit> get() = playerUnits + enemyUnits
 
@@ -30,7 +40,7 @@ class TacticalBattleContext(
          * assigns them to player vs enemy sides based on [attackingUnit]'s civ.
          * Also includes enemy city centers within range.
          */
-        fun buildFrom(attackingUnit: MapUnit, defendingUnit: MapUnit, radius: Int = DEFAULT_RADIUS): TacticalBattleContext {
+        fun buildFrom(attackingUnit: MapUnit, defendingUnit: MapUnit, radius: Int = DEFAULT_RADIUS, aiConfig: TacticalAIConfig = TacticalAIConfig()): TacticalBattleContext {
             val centerTile = defendingUnit.getTile()
             val playerCiv = attackingUnit.civ
 
@@ -57,14 +67,14 @@ class TacticalBattleContext(
                 // Neutral civs don't participate
             }
 
-            return TacticalBattleContext(centerTile, radius, tiles, playerUnits, enemyUnits, enemyCities, primaryTargetIsCity = false)
+            return TacticalBattleContext(centerTile, radius, tiles, playerUnits, enemyUnits, enemyCities, primaryTargetIsCity = false, aiConfig = aiConfig)
         }
 
         /**
          * Builds a context for a battle initiated by a unit attacking a city directly.
          * The [defendingCity] is always the primary target; battle ends when it's captured or all attackers die.
          */
-        fun buildFrom(attackingUnit: MapUnit, defendingCity: City, radius: Int = DEFAULT_RADIUS): TacticalBattleContext {
+        fun buildFrom(attackingUnit: MapUnit, defendingCity: City, radius: Int = DEFAULT_RADIUS, aiConfig: TacticalAIConfig = TacticalAIConfig()): TacticalBattleContext {
             val centerTile = defendingCity.getCenterTile()
             val playerCiv = attackingUnit.civ
 
@@ -92,7 +102,7 @@ class TacticalBattleContext(
                 else if (unit.civ.isAtWarWith(playerCiv)) enemyUnits.add(tacticalUnit)
             }
 
-            return TacticalBattleContext(centerTile, radius, tiles, playerUnits, enemyUnits, enemyCities, primaryTargetIsCity = true)
+            return TacticalBattleContext(centerTile, radius, tiles, playerUnits, enemyUnits, enemyCities, primaryTargetIsCity = true, aiConfig = aiConfig)
         }
 
         /**
@@ -104,6 +114,6 @@ class TacticalBattleContext(
                 .scl(TacticalUnit.HEX_SIZE)  // HEX_SIZE = 40f = TileGroupMap.groupSize * 0.8f
         }
 
-        const val DEFAULT_RADIUS = 3
+        const val DEFAULT_RADIUS = 5
     }
 }

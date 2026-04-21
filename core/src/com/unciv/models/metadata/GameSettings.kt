@@ -93,6 +93,11 @@ class GameSettings {
     var continuousRendering = false
     var showEventVideos = true
     var useTacticalBattles: Boolean = false
+    var aiTacticFocusFire: Boolean = false
+    var aiTacticRetreat: Boolean = false
+    var aiTacticRangedBehindMelee: Boolean = false
+    var aiTacticTargetPriority: Boolean = false
+    var aiTacticCityDefense: Boolean = false
     var orderTradeOffersByAmount = true
     var confirmNextTurn = false
     var windowState = WindowState()
