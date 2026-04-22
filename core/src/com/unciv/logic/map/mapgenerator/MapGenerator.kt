@@ -112,7 +112,7 @@ class MapGenerator(val ruleset: Ruleset, private val coroutineScope: CoroutineSc
 
         fun maybeSnow() = terrain.type == TerrainType.Land 
             && tempFrom <= -1 && tempTo <= -.5 
-            && humidFrom >= 0.2 && humidTo >= 1 
+            && humidFrom >= -.1 && humidTo >= 1 
             && !rareFeature
 
         override fun toString(): String {
@@ -253,7 +253,7 @@ class MapGenerator(val ruleset: Ruleset, private val coroutineScope: CoroutineSc
             tile.naturalWonder = mirrorTile.naturalWonder
             tile.setTerrainFeatures(mirrorTile.terrainFeatures)
             tile.tileResource = mirrorTile.tileResource
-            tile.improvement = mirrorTile.improvement
+            tile.setImprovementBasic(mirrorTile.tileImprovement)
             
             for (neighbor in tile.neighbors){
                 val neighborMirror = getMirrorTile(neighbor, mirroringType) ?: continue
@@ -417,8 +417,10 @@ class MapGenerator(val ruleset: Ruleset, private val coroutineScope: CoroutineSc
                 (suitableTiles.size * ruleset.modOptions.constants.ancientRuinCountMultiplier).roundToInt(),
                 suitableTiles,
                 map.mapParameters.mapSize.radius)
-        for (tile in locations)
-            tile.improvement = ruinsEquivalents.values.filter { isPlaceable(it, tile) }.random().name
+        for (tile in locations) {
+            val ruins = ruinsEquivalents.values.filter { isPlaceable(it, tile) }.random()
+            tile.setImprovementBasic(ruins)
+        }
     }
 
     private fun spreadResources(tileMap: TileMap) {
@@ -672,7 +674,7 @@ class MapGenerator(val ruleset: Ruleset, private val coroutineScope: CoroutineSc
      * [MapParameters.temperatureintensity] as in [applyHumidityAndTemperature]
      */
     private fun spawnIce(tileMap: TileMap) {
-        val oceanTerrains: List<TerrainOccursRange> = terrainFeaturePicker.filter { it.terrain.isOcean && it.tempFrom<= -1 }
+        val oceanTerrains: List<TerrainOccursRange> = baseTerrainPicker.filter { it.terrain.isOcean && it.tempFrom<= -1 }
             .ifEmpty { terrainFeaturePicker.filter { it.terrain.isOcean} }
         val iceTerrains: List<TerrainOccursRange> = terrainFeaturePicker.filter { it.terrain.isIce }
 
@@ -741,8 +743,9 @@ class MapGenerator(val ruleset: Ruleset, private val coroutineScope: CoroutineSc
             if (!ice.matchesTempAndTerrain(tile, -1.0)) {
                 val fallbackBase = oceanTerrains.filter { ice.terrain.occursOn.contains (it.name) }
                     .ifEmpty { oceanTerrains.filter {it.isOcean} }
-                    .random(randomness.RNG)
-                tile.baseTerrain = fallbackBase.name          
+                    .randomOrNull(randomness.RNG)
+                if (fallbackBase != null)
+                    tile.baseTerrain = fallbackBase.name          
             }
             tile.removeTerrainFeatures()
             tile.addTerrainFeature(ice.terrain.name)
