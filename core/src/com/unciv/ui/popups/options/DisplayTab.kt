@@ -87,6 +87,7 @@ internal class DisplayTab(
         addHeader("Experimental")
 
         addCheckbox("Use Tactical Battles", settings::useTacticalBattles)
+        addCheckbox("Tactical Battles for AI attacks", settings::useTacticalBattlesAI)
 
         addHeader("AI Tactics")
         addCheckbox("Focus fire", settings::aiTacticFocusFire)

@@ -45,11 +45,15 @@ class TacticalBattleResult(private val context: TacticalBattleContext) {
             // finalTile is resolved in TacticalBattleScreen using mapHolder coordinates
             // so both sides are in the same coordinate space
             val targetTile = tacticalUnit.finalTile
-            val nearestTile = if (targetTile != null && targetTile !in usedTiles && unit.movement.canMoveTo(targetTile))
+            val domainOk: (com.unciv.logic.map.tile.Tile) -> Boolean = { tile ->
+                if (unit.baseUnit.isWaterUnit) tile.isWater else !tile.isWater
+            }
+            val nearestTile = if (targetTile != null && targetTile !in usedTiles
+                && domainOk(targetTile) && unit.movement.canMoveTo(targetTile))
                 targetTile
             else
                 context.tiles
-                    .filter { it !in usedTiles && unit.movement.canMoveTo(it) }
+                    .filter { it !in usedTiles && domainOk(it) && unit.movement.canMoveTo(it) }
                     .minByOrNull { TacticalBattleContext.tileToWorldPos(it).dst(tacticalUnit.worldPos) }
 
             if (nearestTile != null) {

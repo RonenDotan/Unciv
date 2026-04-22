@@ -161,6 +161,11 @@ class WorldScreen(
         // resume music (in case choices from the menu lead to instantiation of a new WorldScreen)
         UncivGame.Current.musicController.resume()
 
+        // Handle AI-vs-human tactical battles
+        game.aiBattleHandler = { context, onDone ->
+            game.pushScreen(com.unciv.ui.screens.tacticalbattle.TacticalBattleScreen(context, onDismiss = onDone))
+        }
+
         stage.addActor(mapHolder)
         stage.scrollFocus = mapHolder
         stage.addActor(notificationsScroll)  // very low in z-order, so we're free to let it extend _below_ tile info and minimap if we want

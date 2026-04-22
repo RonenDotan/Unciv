@@ -1,15 +1,20 @@
 package com.unciv.logic.automation.unit
 
+import com.badlogic.gdx.Gdx
+import com.unciv.UncivGame
 import com.unciv.logic.battle.AttackableTile
 import com.unciv.logic.battle.Battle
 import com.unciv.logic.battle.BattleDamage
 import com.unciv.logic.battle.CityCombatant
 import com.unciv.logic.battle.MapUnitCombatant
 import com.unciv.logic.battle.TargetHelper
+import com.unciv.logic.battle.tactical.TacticalAIConfig
+import com.unciv.logic.battle.tactical.TacticalBattleContext
 import com.unciv.logic.city.City
 import com.unciv.logic.map.mapunit.MapUnit
 import com.unciv.models.ruleset.unique.GameContext
 import com.unciv.models.ruleset.unique.UniqueType
+import java.util.concurrent.CountDownLatch
 import yairm210.purity.annotations.Readonly
 
 object BattleHelper {
@@ -34,10 +39,37 @@ object BattleHelper {
         val enemyTileToAttack = chooseAttackTarget(unit, attackableEnemies)
 
         if (enemyTileToAttack != null) {
-            if (enemyTileToAttack.tileToAttack.militaryUnit == null && unit.baseUnit.isRanged()
+            // Tactical battle intercept: if AI attacks a human unit and the option is enabled
+            val settings = UncivGame.Current.settings
+            val handler = UncivGame.Current.aiBattleHandler
+            val defender = Battle.getMapCombatantOfTile(enemyTileToAttack.tileToAttack)
+            if (handler != null
+                && settings.useTacticalBattles
+                && settings.useTacticalBattlesAI
+                && defender is MapUnitCombatant
+                && defender.unit.civ.isHuman()
+                && !unit.isNuclearWeapon()) {
+                // Move AI unit to attack position first
+                unit.movement.moveToTile(enemyTileToAttack.tileToAttackFrom)
+                // Build context: human defender is "player", AI attacker is "enemy"
+                val s = settings
+                val aiCfg = TacticalAIConfig(
+                    focusFire = s.aiTacticFocusFire,
+                    retreat = s.aiTacticRetreat,
+                    rangedBehindMelee = s.aiTacticRangedBehindMelee,
+                    targetPriority = s.aiTacticTargetPriority,
+                    cityDefense = s.aiTacticCityDefense
+                )
+                val context = TacticalBattleContext.buildFrom(defender.unit, unit, aiConfig = aiCfg)
+                val latch = CountDownLatch(1)
+                Gdx.app.postRunnable { handler(context) { latch.countDown() } }
+                latch.await()
+                // Consume AI unit's remaining action
+                unit.currentMovement = 0f
+                unit.attacksThisTurn = unit.maxAttacksPerTurn()
+            } else if (enemyTileToAttack.tileToAttack.militaryUnit == null && unit.baseUnit.isRanged()
                 && unit.movement.canMoveTo(enemyTileToAttack.tileToAttack)
-                && distanceToTiles.containsKey(enemyTileToAttack.tileToAttack)) { // Since the 'getAttackableEnemies' could return a tile we attack at range but cannot reach
-                // Ranged units should move to caputre a civilian unit instead of attacking it
+                && distanceToTiles.containsKey(enemyTileToAttack.tileToAttack)) {
                 unit.movement.moveToTile(enemyTileToAttack.tileToAttack)
             } else {
                 Battle.moveAndAttack(MapUnitCombatant(unit), enemyTileToAttack)

@@ -71,6 +71,13 @@ open class UncivGame(val isConsoleMode: Boolean = false) : Game(), PlatformSpeci
     var worldScreen: WorldScreen? = null
         private set
 
+    /**
+     * Set by WorldScreen to handle AI-vs-human tactical battles.
+     * Called from the AI thread; must post work to the GL thread and block until the battle completes.
+     * Parameters: (context, onDone) — call onDone() when the battle screen is dismissed.
+     */
+    var aiBattleHandler: ((com.unciv.logic.battle.tactical.TacticalBattleContext, () -> Unit) -> Unit)? = null
+
     /** Flag used only during initialization until the end of [create] */
     protected var isInitialized = false
         private set

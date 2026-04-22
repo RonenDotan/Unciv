@@ -42,9 +42,6 @@ class TacticalBattleScreen(
     private val spriteSize = com.unciv.ui.components.tilegroups.TileGroupMap.groupSize * 1.5f
     private val VICTORY_DELAY = 0.8f
     private val DEPLOY_SCALE = 3.0f
-    private val healthLabels = mutableMapOf<TacticalUnit, Label>()
-    private val cityHealthLabels = mutableMapOf<TacticalCity, Label>()
-    private val resultLabel = "".toLabel(Color.GOLD, 24).apply { setAlignment(Align.center) }
     private val unitActors = mutableMapOf<TacticalUnit, TacticalUnitActor>()
     private val cityActors = mutableMapOf<TacticalCity, TacticalCityActor>()
     private val mapHolder = TacticalMapHolder(context)
@@ -55,7 +52,8 @@ class TacticalBattleScreen(
     private var victoryDelayTimer = -1f  // counts down after all enemies/player units die
     private var speedMultiplier = 0f  // starts paused
     private var selectedUnit: TacticalUnit? = null
-    private var startButton: Label? = null
+    private var selectionTimer = 0f
+    private val SELECTION_TIMEOUT = 2f
     private var zoomSlider: Slider? = null
     private var speedSlider: Slider? = null
     private var updatingSlider = false
@@ -71,24 +69,8 @@ class TacticalBattleScreen(
         hud.setFillParent(true)
         stage.addActor(hud)
 
-        // Centered "Start Battle" overlay — hidden once clicked
-        val startOverlay = Table()
-        startOverlay.setFillParent(true)
-        val btnTable = Table()
-        btnTable.background = skinStrings.getUiBackground("General/Border", tintColor = Color(0f, 0f, 0f, 0.85f))
-        val btn = "⚔  Start Battle  ⚔".toLabel(Color.GOLD, 28).apply { setAlignment(Align.center) }
-        startButton = btn
-        btnTable.add(btn).pad(20f)
-        btnTable.onClick(UncivSound.Silent) {
-            battleStarted = true
-            speedMultiplier = 1f
-            updatingSpeedSlider = true
-            speedSlider?.value = 1f
-            updatingSpeedSlider = false
-            startOverlay.remove()
-        }
-        startOverlay.add(btnTable).pad(20f)
-        stage.addActor(startOverlay)
+        // Pre-battle popup: unit roster + Start Battle button
+        stage.addActor(buildPreBattlePopup())
 
         // Sync worldPos to actual tile group positions, then create actors
         for (unit in context.allUnits) {
@@ -131,6 +113,7 @@ class TacticalBattleScreen(
             selectedUnit?.let { unitActors[it]?.isSelected = false }
             selectedUnit = if (sel == unit) null else unit  // toggle deselect
             actor.isSelected = selectedUnit == unit
+            if (selectedUnit != null) selectionTimer = SELECTION_TIMEOUT
         } else {
             // Enemy clicked: command selected unit to attack it
             if (sel != null && sel.isPlayerControlled && sel.state != TacticalUnitState.DEAD) {
@@ -145,12 +128,9 @@ class TacticalBattleScreen(
         hud.touchable = Touchable.childrenOnly
 
         val bottomPanel = Table()
-        bottomPanel.background = skinStrings.getUiBackground(
-            "General/Border", tintColor = Color(0f, 0f, 0f, 0.75f)
-        )
-        bottomPanel.pad(8f)
+        bottomPanel.background = skinStrings.getUiBackground("General/Border", tintColor = Color(0f, 0f, 0f, 0.7f))
+        bottomPanel.pad(8f, 16f, 8f, 16f)
 
-        // Speed slider + Zoom slider on the same row
         val spdSlider = Slider(0f, 3f, 0.1f, false, skin)
         spdSlider.value = speedMultiplier
         spdSlider.addListener(object : ChangeListener() {
@@ -169,44 +149,16 @@ class TacticalBattleScreen(
         })
         zoomSlider = zoomSliderWidget
 
-        val slidersRow = Table()
-        slidersRow.add("Spd".toLabel(Color.LIGHT_GRAY, 12)).padRight(4f)
-        slidersRow.add(spdSlider).width(150f).height(24f).padRight(20f)
-        slidersRow.add("Zoom".toLabel(Color.LIGHT_GRAY, 12)).padRight(4f)
-        slidersRow.add(zoomSliderWidget).width(150f).height(24f)
-        bottomPanel.add(slidersRow).colspan(2).padBottom(6f).row()
-        bottomPanel.add(resultLabel).colspan(2).padBottom(4f).row()
-
-        // Unit HP columns
-        val playerCol = Table()
-        val enemyCol = Table()
-        for (unit in context.playerUnits) {
-            val lbl = "${unit.getName()}  ${unit.currentHealth}hp".toLabel(Color.GREEN, 12)
-            healthLabels[unit] = lbl
-            playerCol.add(lbl).left().padBottom(1f).row()
-        }
-        for (unit in context.enemyUnits) {
-            val lbl = "${unit.getName()}  ${unit.currentHealth}hp".toLabel(Color.RED, 12)
-            healthLabels[unit] = lbl
-            enemyCol.add(lbl).left().padBottom(1f).row()
-        }
-        for (city in context.enemyCities) {
-            val lbl = "${city.getName()}  ${city.currentHealth}hp".toLabel(Color.ORANGE, 12)
-            cityHealthLabels[city] = lbl
-            enemyCol.add(lbl).left().padBottom(1f).row()
-        }
-        bottomPanel.add(playerCol).padRight(24f).top()
-        bottomPanel.add(enemyCol).top().row()
-
-        val dismissButton = "End Battle".toLabel(Color.WHITE, 16).apply { setAlignment(Align.center) }
-        bottomPanel.add(dismissButton).colspan(2).padTop(6f).width(160f).height(36f)
-        dismissButton.onClick { dismiss() }
+        bottomPanel.add("Spd".toLabel(Color.LIGHT_GRAY, 14)).padRight(6f)
+        bottomPanel.add(spdSlider).width(180f).height(28f).padRight(30f)
+        bottomPanel.add("Zoom".toLabel(Color.LIGHT_GRAY, 14)).padRight(6f)
+        bottomPanel.add(zoomSliderWidget).width(180f).height(28f)
 
         hud.add().grow().row()
         hud.add(bottomPanel).growX().row()
 
-        hud.keyShortcuts.add(Input.Keys.ESCAPE) { dismiss() }
-        hud.keyShortcuts.add(Input.Keys.ENTER) { if (battleOver) dismiss() }
+        hud.keyShortcuts.add(Input.Keys.ESCAPE) { if (battleOver) dismiss() }
+        hud.keyShortcuts.add(Input.Keys.ENTER)  { if (battleOver) dismiss() }
         hud.keyShortcuts.add(Input.Keys.SPACE) {
             if (battleStarted) {
                 speedMultiplier = if (speedMultiplier == 0f) 1f else 0f
@@ -219,8 +171,109 @@ class TacticalBattleScreen(
         return hud
     }
 
+    private fun buildPreBattlePopup(): Table {
+        val overlay = Table()
+        overlay.setFillParent(true)
+
+        val panel = Table()
+        panel.background = skinStrings.getUiBackground("General/Border", tintColor = Color(0f, 0f, 0f, 0.88f))
+        panel.pad(16f)
+
+        panel.add("⚔  Tactical Battle  ⚔".toLabel(Color.GOLD, 22)).colspan(2).padBottom(12f).row()
+
+        val playerCol = Table()
+        val enemyCol = Table()
+        playerCol.add("Your Forces".toLabel(Color.GREEN, 14)).left().padBottom(4f).row()
+        enemyCol.add("Enemy Forces".toLabel(Color.RED, 14)).left().padBottom(4f).row()
+
+        for (unit in context.playerUnits)
+            playerCol.add("${unit.getName().tr()}  ${unit.currentHealth}hp".toLabel(Color.GREEN, 12)).left().padBottom(1f).row()
+        for (unit in context.enemyUnits)
+            enemyCol.add("${unit.getName().tr()}  ${unit.currentHealth}hp".toLabel(Color.RED, 12)).left().padBottom(1f).row()
+        for (city in context.enemyCities)
+            enemyCol.add("${city.getName().tr()}  ${city.currentHealth}hp".toLabel(Color.ORANGE, 12)).left().padBottom(1f).row()
+
+        panel.add(playerCol).padRight(32f).top()
+        panel.add(enemyCol).top().row()
+
+        val startBtn = "⚔  Start Battle  ⚔".toLabel(Color.GOLD, 20).apply { setAlignment(Align.center) }
+        panel.add(startBtn).colspan(2).padTop(14f).width(220f).height(40f)
+        startBtn.onClick(UncivSound.Silent) {
+            battleStarted = true
+            speedMultiplier = 1f
+            updatingSpeedSlider = true
+            speedSlider?.value = 1f
+            updatingSpeedSlider = false
+            overlay.remove()
+        }
+
+        overlay.add(panel)
+        return overlay
+    }
+
+    private fun showEndBattlePopup(playerWon: Boolean) {
+        val overlay = Table()
+        overlay.setFillParent(true)
+
+        val panel = Table()
+        panel.background = skinStrings.getUiBackground("General/Border", tintColor = Color(0f, 0f, 0f, 0.88f))
+        panel.pad(16f)
+
+        val resultText = if (playerWon) "Victory!".tr() else "Defeat!".tr()
+        val resultColor = if (playerWon) Color.GOLD else Color.RED
+        panel.add(resultText.toLabel(resultColor, 26)).colspan(2).padBottom(12f).row()
+
+        val playerCol = Table()
+        val enemyCol = Table()
+        playerCol.add("Your Forces".toLabel(Color.GREEN, 14)).left().padBottom(4f).row()
+        enemyCol.add("Enemy Forces".toLabel(Color.RED, 14)).left().padBottom(4f).row()
+
+        for (unit in context.playerUnits) {
+            val stateText = when (unit.state) {
+                TacticalUnitState.DEAD    -> "dead".tr()
+                TacticalUnitState.ESCAPED -> "fled".tr()
+                else -> "${unit.currentHealth}${"hp".tr()}"
+            }
+            val color = if (unit.state == TacticalUnitState.DEAD) Color.DARK_GRAY else Color.GREEN
+            playerCol.add("${unit.getName().tr()}  $stateText".toLabel(color, 12)).left().padBottom(1f).row()
+        }
+        for (unit in context.enemyUnits) {
+            val stateText = when (unit.state) {
+                TacticalUnitState.DEAD    -> "dead".tr()
+                TacticalUnitState.ESCAPED -> "fled".tr()
+                else -> "${unit.currentHealth}${"hp".tr()}"
+            }
+            val color = if (unit.state == TacticalUnitState.DEAD) Color.DARK_GRAY else Color.RED
+            enemyCol.add("${unit.getName().tr()}  $stateText".toLabel(color, 12)).left().padBottom(1f).row()
+        }
+        for (city in context.enemyCities) {
+            val stateText = if (city.state == TacticalCityState.CAPTURED) "captured".tr() else "${city.currentHealth}${"hp".tr()}"
+            enemyCol.add("${city.getName().tr()}  $stateText".toLabel(Color.ORANGE, 12)).left().padBottom(1f).row()
+        }
+
+        panel.add(playerCol).padRight(32f).top()
+        panel.add(enemyCol).top().row()
+
+        val continueBtn = "Continue".toLabel(Color.WHITE, 18).apply { setAlignment(Align.center) }
+        panel.add(continueBtn).colspan(2).padTop(14f).width(160f).height(36f)
+        continueBtn.onClick { dismiss() }
+
+        overlay.add(panel)
+        stage.addActor(overlay)
+    }
+
     private fun simulationStep(delta: Float) {
         if (battleOver || speedMultiplier == 0f) return
+
+        // Auto-deselect after timeout
+        if (selectedUnit != null) {
+            selectionTimer -= delta
+            if (selectionTimer <= 0f) {
+                unitActors[selectedUnit]?.isSelected = false
+                selectedUnit = null
+            }
+        }
+
         val cappedDelta = (delta * speedMultiplier).coerceAtMost(1f / 20f)
 
         // Check escape BEFORE update so AI doesn't pull units back on the same frame
@@ -276,19 +329,6 @@ class TacticalBattleScreen(
         for ((city, actor) in cityActors) {
             actor.updateFromCity(cappedDelta)
         }
-        for ((unit, label) in healthLabels) {
-            val state = when (unit.state) {
-                TacticalUnitState.DEAD -> "dead".tr()
-                TacticalUnitState.ESCAPED -> "fled".tr()
-                else -> "${unit.currentHealth}${"hp".tr()}"
-            }
-            label.setText("${unit.getName().tr()}  $state")
-        }
-        for ((city, label) in cityHealthLabels) {
-            val state = if (city.state == TacticalCityState.CAPTURED) "captured".tr() else "${city.currentHealth}${"hp".tr()}"
-            label.setText("${city.getName().tr()}  $state")
-        }
-
         // Start delay on first frame all enemies/player units are wiped out
         if (victoryDelayTimer < 0f && !battleOver) {
             when {
@@ -300,11 +340,8 @@ class TacticalBattleScreen(
         if (victoryDelayTimer >= 0f) {
             victoryDelayTimer -= delta
             if (victoryDelayTimer <= 0f) {
-                when {
-                    result.playerWon -> { resultLabel.setText("Victory!".tr()); resultLabel.color = Color.GOLD }
-                    result.enemyWon  -> { resultLabel.setText("Defeat!".tr());  resultLabel.color = Color.RED  }
-                }
                 battleOver = true
+                showEndBattlePopup(result.playerWon)
             }
         }
     }

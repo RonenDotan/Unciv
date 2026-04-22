@@ -98,6 +98,7 @@ class GameSettings {
     var aiTacticRangedBehindMelee: Boolean = false
     var aiTacticTargetPriority: Boolean = false
     var aiTacticCityDefense: Boolean = false
+    var useTacticalBattlesAI: Boolean = false
     var orderTradeOffersByAmount = true
     var confirmNextTurn = false
     var windowState = WindowState()
