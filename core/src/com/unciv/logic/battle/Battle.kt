@@ -39,8 +39,9 @@ object Battle {
     fun moveAndAttack(attacker: ICombatant, attackableTile: AttackableTile) {
         if (!movePreparingAttack(attacker, attackableTile, true)) return
 
-        // When tactical battles are on and AI attacks a human unit, defer instead of resolving instantly
+        // When tactical battles are on for AI, and AI attacks a human unit, defer instead of resolving instantly
         if (UncivGame.Current.settings.useTacticalBattles
+            && UncivGame.Current.settings.useTacticalBattlesAI
             && attacker is MapUnitCombatant
             && !attacker.unit.isNuclearWeapon()
             && !attacker.unit.civ.isHuman()) {

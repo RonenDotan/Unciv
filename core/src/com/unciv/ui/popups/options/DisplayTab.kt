@@ -86,16 +86,6 @@ internal class DisplayTab(
 
         addHeader("Experimental")
 
-        addCheckbox("Use Tactical Battles", settings::useTacticalBattles)
-        addCheckbox("Tactical Battles for AI attacks", settings::useTacticalBattlesAI)
-
-        addHeader("AI Tactics")
-        addCheckbox("Focus fire", settings::aiTacticFocusFire)
-        addCheckbox("Low HP retreat", settings::aiTacticRetreat)
-        addCheckbox("Ranged units behind melee", settings::aiTacticRangedBehindMelee)
-        addCheckbox("Target priority", settings::aiTacticTargetPriority)
-        addCheckbox("City defense", settings::aiTacticCityDefense)
-
         addCheckbox("Experimental Demographics scoreboard", settings::useDemographics)
         addCheckbox("Animate Unit movement button", settings::unitMovementButtonAnimation)
         addCheckbox("Animate Unit actions menu", settings::unitActionsTableAnimation)

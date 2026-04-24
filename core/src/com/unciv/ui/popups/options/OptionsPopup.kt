@@ -112,6 +112,11 @@ class OptionsPopup(
         }
 
         tabs.addPage(
+            "Tactical Battle",
+            TacticalBattleTab(this),
+            ImageGetter.getImage("OtherIcons/Shield"), 24f
+        )
+        tabs.addPage(
             "Advanced",
             AdvancedTab(this),
             ImageGetter.getImage("OtherIcons/Settings"), 24f
