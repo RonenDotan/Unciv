@@ -36,6 +36,7 @@ enum class LocaleCode(val languageTag: String, private val fastlaneFolder: Strin
     Galician("gl-ES"),
     German("de-DE"),
     Greek("el-GR"),
+    Hebrew("he-IL"),
     Hindi("hi-IN"),
     Hungarian("hu-HU"),
     Indonesian("in-ID"),
