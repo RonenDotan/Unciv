@@ -13,9 +13,12 @@ import com.badlogic.gdx.scenes.scene2d.InputEvent
 import com.badlogic.gdx.scenes.scene2d.InputListener
 import com.badlogic.gdx.scenes.scene2d.Touchable
 import com.badlogic.gdx.scenes.scene2d.ui.Image
+import com.badlogic.gdx.scenes.scene2d.ui.Label
 import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable
+import com.badlogic.gdx.utils.Align
 import com.unciv.logic.battle.tactical.TacticalUnit
 import com.unciv.logic.battle.tactical.TacticalUnitState
+import com.unciv.ui.components.extensions.toLabel
 import com.unciv.ui.components.tilegroups.TileGroupMap
 import com.unciv.ui.components.tilegroups.TileSetStrings
 import com.unciv.ui.images.ImageGetter
@@ -164,6 +167,8 @@ class TacticalUnitActor(
     private val factionCircle: Image
     private val cooldownIndicator: CooldownIndicator
     private lateinit var sprite: OutlinedGroup
+    /** Small state badge above the unit — only shown for player-controlled units */
+    private val stateLabel: Label?
 
     private val spriteSize = TileGroupMap.groupSize * 1.5f  // 75f
     private val barHeight = 4f
@@ -224,6 +229,15 @@ class TacticalUnitActor(
             setPosition(spriteSize / 2f - clockSize / 2f, barHeight + 2f + spriteSize + 4f)
         }
         addActor(cooldownIndicator)
+
+        // --- State badge: small icon above the cooldown clock (player units only) ---
+        stateLabel = if (tacticalUnit.isPlayerControlled) {
+            "·".toLabel(Color.GRAY, 14).apply {
+                setAlignment(Align.center)
+                width = spriteSize
+                setPosition(0f, barHeight + 2f + spriteSize + clockSize + 10f)
+            }.also { addActor(it) }
+        } else null
 
         // --- Health bar ---
         healthBarBg = ImageGetter.getDot(Color.DARK_GRAY).apply {
@@ -288,6 +302,26 @@ class TacticalUnitActor(
         // Cooldown clock arc
         cooldownIndicator.fraction = (tacticalUnit.cooldownRemaining / tacticalUnit.attackCooldownSeconds)
             .coerceIn(0f, 1f)
+
+        // State badge
+        stateLabel?.let { lbl ->
+            when {
+                tacticalUnit.holdPosition -> {
+                    lbl.setText("⛔")
+                    lbl.color = Color.ORANGE
+                }
+                tacticalUnit.commandedDestination != null || tacticalUnit.commandedTarget != null
+                        || tacticalUnit.state == TacticalUnitState.MOVING
+                        || tacticalUnit.state == TacticalUnitState.ATTACKING -> {
+                    lbl.setText("⚔")
+                    lbl.color = Color.WHITE
+                }
+                else -> {
+                    lbl.setText("·")
+                    lbl.color = Color.LIGHT_GRAY
+                }
+            }
+        }
 
         // Smooth fade to 0 alpha on death/escape
         val targetAlpha = if (tacticalUnit.state == TacticalUnitState.DEAD || tacticalUnit.state == TacticalUnitState.ESCAPED) 0f else 1f

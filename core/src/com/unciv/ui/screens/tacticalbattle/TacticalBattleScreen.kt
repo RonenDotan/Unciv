@@ -52,12 +52,13 @@ class TacticalBattleScreen(
     private var victoryDelayTimer = -1f  // counts down after all enemies/player units die
     private var speedMultiplier = 0f  // starts paused
     private var selectedUnit: TacticalUnit? = null
-    private var selectionTimer = 0f
-    private val SELECTION_TIMEOUT = 2f
     private var zoomSlider: Slider? = null
     private var speedSlider: Slider? = null
     private var updatingSlider = false
     private var updatingSpeedSlider = false
+    private var holdPositionLabel: Label? = null
+    private var selectedUnitNameLabel: Label? = null
+    private var selectedUnitStateLabel: Label? = null
 
     init {
         val mapTable = Table()
@@ -113,13 +114,50 @@ class TacticalBattleScreen(
             selectedUnit?.let { unitActors[it]?.isSelected = false }
             selectedUnit = if (sel == unit) null else unit  // toggle deselect
             actor.isSelected = selectedUnit == unit
-            if (selectedUnit != null) selectionTimer = SELECTION_TIMEOUT
+            updateHoldPositionButton(selectedUnit)
         } else {
             // Enemy clicked: command selected unit to attack it
             if (sel != null && sel.isPlayerControlled && sel.state != TacticalUnitState.DEAD) {
                 sel.commandedTarget = unit
                 sel.commandedDestination = null
             }
+        }
+    }
+
+    private fun updateHoldPositionButton(unit: TacticalUnit?) {
+        // Hold Position toggle button
+        val lbl = holdPositionLabel ?: return
+        if (unit == null || !unit.isPlayerControlled) {
+            lbl.setText("Hold Position".tr())
+            lbl.color = Color.GRAY
+        } else if (unit.holdPosition) {
+            lbl.setText("⛔ Holding".tr())
+            lbl.color = Color.ORANGE
+        } else {
+            lbl.setText("Hold Position".tr())
+            lbl.color = Color.WHITE
+        }
+
+        // Selected unit name + state
+        val nameLbl = selectedUnitNameLabel ?: return
+        val stateLbl = selectedUnitStateLabel ?: return
+        if (unit == null || !unit.isPlayerControlled) {
+            nameLbl.setText("")
+            stateLbl.setText("")
+        } else {
+            nameLbl.setText(unit.getName().tr())
+            val (icon, desc, color) = when {
+                unit.holdPosition ->
+                    Triple("⛔", "Holding".tr(), Color.ORANGE)
+                unit.commandedDestination != null ->
+                    Triple("▶", "Moving".tr(), Color.CYAN)
+                unit.commandedTarget != null ->
+                    Triple("⚔", "Attacking".tr(), Color.WHITE)
+                else ->
+                    Triple("·", "Auto".tr(), Color.LIGHT_GRAY)
+            }
+            stateLbl.setText("$icon $desc")
+            stateLbl.color = color
         }
     }
 
@@ -152,7 +190,27 @@ class TacticalBattleScreen(
         bottomPanel.add("Spd".toLabel(Color.LIGHT_GRAY, 14)).padRight(6f)
         bottomPanel.add(spdSlider).width(180f).height(28f).padRight(30f)
         bottomPanel.add("Zoom".toLabel(Color.LIGHT_GRAY, 14)).padRight(6f)
-        bottomPanel.add(zoomSliderWidget).width(180f).height(28f)
+        bottomPanel.add(zoomSliderWidget).width(180f).height(28f).padRight(24f)
+
+        // Selected unit info: name (top) + state (bottom)
+        val unitInfoTable = com.badlogic.gdx.scenes.scene2d.ui.Table()
+        val nameLbl = "".toLabel(Color.WHITE, 14).apply { setAlignment(Align.center) }
+        val stateLbl = "".toLabel(Color.LIGHT_GRAY, 13).apply { setAlignment(Align.center) }
+        selectedUnitNameLabel = nameLbl
+        selectedUnitStateLabel = stateLbl
+        unitInfoTable.add(nameLbl).width(120f).row()
+        unitInfoTable.add(stateLbl).width(120f)
+        bottomPanel.add(unitInfoTable).width(120f).height(40f).padRight(16f)
+
+        val holdBtn = "Hold Position".toLabel(Color.WHITE, 14).apply { setAlignment(Align.center) }
+        holdBtn.onClick {
+            val sel = selectedUnit ?: return@onClick
+            sel.holdPosition = !sel.holdPosition
+            if (sel.holdPosition) sel.commandedDestination = null  // cancel any move order
+            updateHoldPositionButton(sel)
+        }
+        holdPositionLabel = holdBtn
+        bottomPanel.add(holdBtn).width(130f).height(40f)
 
         hud.add().grow().row()
         hud.add(bottomPanel).growX().row()
@@ -265,13 +323,15 @@ class TacticalBattleScreen(
     private fun simulationStep(delta: Float) {
         if (battleOver || speedMultiplier == 0f) return
 
-        // Auto-deselect after timeout
-        if (selectedUnit != null) {
-            selectionTimer -= delta
-            if (selectionTimer <= 0f) {
-                unitActors[selectedUnit]?.isSelected = false
-                selectedUnit = null
-            }
+        // Auto-deselect dead units
+        val sel = selectedUnit
+        if (sel != null && (sel.state == TacticalUnitState.DEAD || sel.state == TacticalUnitState.ESCAPED)) {
+            unitActors[sel]?.isSelected = false
+            selectedUnit = null
+            updateHoldPositionButton(null)
+        } else if (sel != null) {
+            // Refresh state label every frame while a unit is selected
+            updateHoldPositionButton(sel)
         }
 
         val cappedDelta = (delta * speedMultiplier).coerceAtMost(1f / 20f)

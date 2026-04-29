@@ -48,7 +48,10 @@ object BattleHelper {
                 && settings.useTacticalBattlesAI
                 && defender is MapUnitCombatant
                 && defender.unit.civ.isHuman()
-                && !unit.isNuclearWeapon()) {
+                && !unit.isNuclearWeapon()
+                && !unit.baseUnit.isAirUnit()
+                && !unit.baseUnit.isRanged()
+                && !unit.hasUnique(UniqueType.SelfDestructs)) {
                 // Move AI unit to attack position first
                 unit.movement.moveToTile(enemyTileToAttack.tileToAttackFrom)
                 // Build context: human defender is "player", AI attacker is "enemy"

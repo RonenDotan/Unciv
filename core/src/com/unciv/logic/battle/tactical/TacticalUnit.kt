@@ -62,6 +62,10 @@ class TacticalUnit(val sourceUnit: MapUnit) : ICombatant, TacticalCombatant {
     /** Player-commanded attack target. Overrides AI target selection when set. */
     var commandedTarget: TacticalCombatant? = null  // TacticalUnit or TacticalCity
 
+    /** When true, unit stays at current position and does not advance toward enemies.
+     *  It will still attack any enemy that enters its attack range. */
+    var holdPosition: Boolean = false
+
     val isPlayerControlled: Boolean
         get() = sourceUnit.civ.isHuman()
 
@@ -167,25 +171,32 @@ class TacticalUnit(val sourceUnit: MapUnit) : ICombatant, TacticalCombatant {
             }
         } else {
             // Advance toward target; ranged units stop at attack range
-            state = TacticalUnitState.MOVING
-            if (!isRangedUnit || dist > attackRangePixels) {
-                val toTarget = target.worldPos.cpy().sub(worldPos).nor()
+            // Units with holdPosition stay put — they wait for enemies to come to them
+            if (holdPosition) {
+                state = TacticalUnitState.IDLE
                 val sep = separationForce(allies + enemies)
-                var finalDir = toTarget.add(sep.scl(SEP_WEIGHT)).nor()
+                if (sep.len() > 0.1f) worldPos.add(sep.nor().scl(moveSpeed * delta * SEP_IDLE_WEIGHT))
+            } else {
+                state = TacticalUnitState.MOVING
+                if (!isRangedUnit || dist > attackRangePixels) {
+                    val toTarget = target.worldPos.cpy().sub(worldPos).nor()
+                    val sep = separationForce(allies + enemies)
+                    var finalDir = toTarget.add(sep.scl(SEP_WEIGHT)).nor()
 
-                // Ranged behind melee: if no melee ally is closer to the enemy, retreat instead
-                if (isRangedUnit && aiConfig.rangedBehindMelee) {
-                    val meleeAllies = allies.filter { !it.isRangedUnit && it.isAliveForBattle() }
-                    val anyMeleeInFront = meleeAllies.any { ally ->
-                        ally.worldPos.dst(target.worldPos) < worldPos.dst(target.worldPos)
+                    // Ranged behind melee: if no melee ally is closer to the enemy, retreat instead
+                    if (isRangedUnit && aiConfig.rangedBehindMelee) {
+                        val meleeAllies = allies.filter { !it.isRangedUnit && it.isAliveForBattle() }
+                        val anyMeleeInFront = meleeAllies.any { ally ->
+                            ally.worldPos.dst(target.worldPos) < worldPos.dst(target.worldPos)
+                        }
+                        if (!anyMeleeInFront && meleeAllies.isNotEmpty()) {
+                            val awayDir = worldPos.cpy().sub(target.worldPos).nor()
+                            finalDir = awayDir.add(separationForce(allies + enemies).scl(SEP_WEIGHT)).nor()
+                        }
                     }
-                    if (!anyMeleeInFront && meleeAllies.isNotEmpty()) {
-                        val awayDir = worldPos.cpy().sub(target.worldPos).nor()
-                        finalDir = awayDir.add(separationForce(allies + enemies).scl(SEP_WEIGHT)).nor()
-                    }
+
+                    worldPos.add(finalDir.scl(moveSpeed * delta))
                 }
-
-                worldPos.add(finalDir.scl(moveSpeed * delta))
             }
         }
     }

@@ -44,6 +44,9 @@ object Battle {
             && UncivGame.Current.settings.useTacticalBattlesAI
             && attacker is MapUnitCombatant
             && !attacker.unit.isNuclearWeapon()
+            && !attacker.unit.baseUnit.isAirUnit()
+            && !attacker.unit.baseUnit.isRanged()
+            && !attacker.unit.hasUnique(UniqueType.SelfDestructs)
             && !attacker.unit.civ.isHuman()) {
             val defender = getMapCombatantOfTile(attackableTile.tileToAttack)
             if (defender is MapUnitCombatant && defender.unit.civ.isHuman()) {

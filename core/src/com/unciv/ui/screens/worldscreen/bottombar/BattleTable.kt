@@ -322,10 +322,13 @@ class BattleTable(val worldScreen: WorldScreen) : Table() {
         if (!SoundPlayer.play(UncivSound(attacker.getName())))
             SoundPlayer.play(attacker.getAttackSound())
 
-        // Launch tactical battle screen when feature is enabled (unit vs unit or unit vs city)
+        // Launch tactical battle screen for melee unit vs unit or melee unit vs city
         if (worldScreen.game.settings.useTacticalBattles
             && attacker is MapUnitCombatant
             && !attacker.unit.isNuclearWeapon()
+            && !attacker.unit.baseUnit.isAirUnit()
+            && !attacker.unit.baseUnit.isRanged()
+            && !attacker.unit.hasUnique(UniqueType.SelfDestructs)
             && !worldScreen.autoPlay.isAutoPlaying()) {
             val s = worldScreen.game.settings
             val aiCfg = com.unciv.logic.battle.tactical.TacticalAIConfig(
